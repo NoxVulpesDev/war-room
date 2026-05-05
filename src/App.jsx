@@ -5,7 +5,7 @@ const FACTIONS = {
   enemy:  { color: "#7a1c1c", border: "#e8a0a0", label: "Enemy",  icon: "☠" },
 };
 
-const TOKEN_RADIUS = 22;
+const TOKEN_RADIUS = 11;
 const MERGE_THRESHOLD = TOKEN_RADIUS * 2.2;
 
 function dist(a, b) {
