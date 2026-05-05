@@ -183,7 +183,7 @@ export default function BattleMap() {
   // ─────────────────────────────────────────────────────────────────────────────
   // DEBOUNCED SAVE  — called after every local mutation
   // ─────────────────────────────────────────────────────────────────────────────
-  const scheduleSave = useCallback((latestTokens) => {
+  const scheduleSave = useCallback((latestTokens, currentUserId, currentIsAdmin) => {
     if (!isPlayer || !selectedMap) return;
     localTokensRef.current = latestTokens;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -191,7 +191,7 @@ export default function BattleMap() {
     saveTimerRef.current = setTimeout(async () => {
       saveTimerRef.current = null;
       try {
-        await saveTokens(sessionId, localTokensRef.current);
+        await saveTokens(sessionId, localTokensRef.current, currentUserId, currentIsAdmin);
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 2000);
       } catch (err) {
@@ -205,10 +205,10 @@ export default function BattleMap() {
   const setTokensAndSave = useCallback((updater) => {
     setTokens(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      scheduleSave(next);
+      scheduleSave(next, userProfile?.uid ?? null, isAdmin);
       return next;
     });
-  }, [scheduleSave]);
+  }, [scheduleSave, userProfile?.uid, isAdmin]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // PERMISSION HELPERS

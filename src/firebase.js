@@ -68,9 +68,12 @@ export function subscribeToTokens(sessionId, callback) {
   });
 }
 
-export async function saveTokens(sessionId, tokens) {
+export async function saveTokens(sessionId, tokens, currentUserId = null, isAdmin = false) {
   const batch = writeBatch(db);
   tokens.forEach((token) => {
+    if (!isAdmin) {
+      if (!token.ownerId || token.ownerId !== currentUserId) return;
+    }
     const ref = doc(db, "sessions", sessionId, "tokens", token.id);
     batch.set(ref, {
       faction:   token.faction,
