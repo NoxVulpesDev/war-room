@@ -213,7 +213,7 @@ export default function BattleMap() {
     if (!el) return;
     el.addEventListener("wheel", handleWheel, { passive: false });
     return () => el.removeEventListener("wheel", handleWheel);
-  }, [handleWheel]);
+  }, [handleWheel, authReady]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // MOUSE PAN
