@@ -1,10 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
 const MAPS = [
-  { id: "erin",      label: "Erin",      src: "/Erin.jpg" },
-  { id: "manx",      label: "Manx",      src: "/Manx.jpg" },
-  { id: "cymru",     label: "Cymru",     src: "/Cymru.jpg" },
-  { id: "caledonia", label: "Caledonia", src: "/Caledonia.jpg" },
+  { id: "erin",      label: "Erin",      src: "./Public/Erin.jpg" },
+  { id: "manx",      label: "Manx",      src: "./Public/Manx.jpg" },
+  { id: "cymru",     label: "Cymru",     src: "./Public/Cymru.jpg" },
+  { id: "caledonia", label: "Caledonia", src: "./Public/Caledonia.jpg" },
 ];
 
 const FACTIONS = {
