@@ -70,11 +70,12 @@ export default function AuthModal({ onAuth }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [nation, setNation] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const finish = async (firebaseUser, characterName) => {
-    const profile = await getOrCreateUserProfile(firebaseUser, characterName);
+  const finish = async (firebaseUser, characterName, chosenNation) => {
+    const profile = await getOrCreateUserProfile(firebaseUser, characterName, chosenNation);
     onAuth(firebaseUser, profile);
   };
 
@@ -88,9 +89,10 @@ export default function AuthModal({ onAuth }) {
         await finish(cred.user);
       } else {
         if (!displayName.trim()) { setError("Enter a display name."); setLoading(false); return; }
+        if (!nation) { setError("Choose your nation."); setLoading(false); return; }
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(cred.user, { displayName: displayName.trim() });
-        await finish(cred.user, displayName.trim());
+        await finish(cred.user, displayName.trim(), nation);
       }
     } catch (err) {
       setError(friendlyError(err.code));
@@ -141,7 +143,7 @@ export default function AuthModal({ onAuth }) {
           <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
             {["login", "signup"].map(t => (
               <button key={t}
-                onClick={() => { setTab(t); setError(""); }}
+                onClick={() => { setTab(t); setError(""); setNation(""); }}
                 style={{
                   flex: 1, padding: "6px 0", borderRadius: 3, cursor: "pointer",
                   fontFamily: "'Cinzel', serif", fontSize: 11, fontWeight: 600,
@@ -160,19 +162,39 @@ export default function AuthModal({ onAuth }) {
           {/* Fields */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {tab === "signup" && (
-              <div>
-                <label style={{ fontSize: 11, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
-                  Commander's Name
-                </label>
-                <input
-                  style={inputStyle}
-                  value={displayName}
-                  onChange={e => setDisplayName(e.target.value)}
-                  placeholder="Your name in the chronicles"
-                  onFocus={e => e.target.style.borderColor = "#8b6914"}
-                  onBlur={e => e.target.style.borderColor = "#5c3d11"}
-                />
-              </div>
+              <>
+                <div>
+                  <label style={{ fontSize: 11, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
+                    Commander's Name
+                  </label>
+                  <input
+                    style={inputStyle}
+                    value={displayName}
+                    onChange={e => setDisplayName(e.target.value)}
+                    placeholder="Your name in the chronicles"
+                    onFocus={e => e.target.style.borderColor = "#8b6914"}
+                    onBlur={e => e.target.style.borderColor = "#5c3d11"}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
+                    Nation
+                  </label>
+                  <select
+                    style={{ ...inputStyle, cursor: "pointer", appearance: "none" }}
+                    value={nation}
+                    onChange={e => setNation(e.target.value)}
+                    onFocus={e => e.target.style.borderColor = "#8b6914"}
+                    onBlur={e => e.target.style.borderColor = "#5c3d11"}
+                  >
+                    <option value="">— Choose your nation —</option>
+                    <option value="erin">🟢 Erin</option>
+                    <option value="manx">🔴 Manx</option>
+                    <option value="caledonia">🔵 Caledonia</option>
+                    <option value="cymria">🟡 Cymria</option>
+                  </select>
+                </div>
+              </>
             )}
             <div>
               <label style={{ fontSize: 11, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
@@ -225,6 +247,7 @@ export default function AuthModal({ onAuth }) {
             lineHeight: 1.5, letterSpacing: "0.04em",
           }}>
             New accounts join as <em style={{ color: "#5c4a28" }}>Player</em>.<br />
+            Commanders may only place tokens on their own nation's map.<br />
             The Game Master promotes commanders via the Firebase console.
           </p>
         </div>

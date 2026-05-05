@@ -22,7 +22,7 @@ export const auth           = getAuth(app);
 export const db             = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
-export async function getOrCreateUserProfile(firebaseUser, characterName) {
+export async function getOrCreateUserProfile(firebaseUser, characterName, nation) {
   const ref  = doc(db, "users", firebaseUser.uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
@@ -31,6 +31,7 @@ export async function getOrCreateUserProfile(firebaseUser, characterName) {
       email:       firebaseUser.email,
       displayName: characterName ?? firebaseUser.displayName ?? firebaseUser.email.split("@")[0],
       role:        "player",
+      nation:      nation ?? null,
       createdAt:   serverTimestamp(),
     };
     await setDoc(ref, profile);
@@ -66,6 +67,7 @@ export async function saveTokens(sessionId, tokens) {
       count:     token.count,
       notes:     token.notes,
       ownerId:   token.ownerId ?? null,
+      nation:    token.nation ?? null,
       updatedAt: serverTimestamp(),
     });
   });

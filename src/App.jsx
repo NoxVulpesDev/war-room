@@ -17,6 +17,13 @@ const FACTIONS = {
   contested: { color: "#640264", border: "#e8a0d2", label: "Contested", icon: "⚔" },
 };
 
+const NATIONS = {
+  erin:      { color: "#1e5c32", border: "#62c279", label: "Erin",      mapId: "erin" },
+  manx:      { color: "#6e1818", border: "#d05050", label: "Manx",      mapId: "manx" },
+  caledonia: { color: "#172a6e", border: "#5882d8", label: "Caledonia", mapId: "caledonia" },
+  cymria:    { color: "#5c4818", border: "#d4aa30", label: "Cymria",    mapId: "cymria" },
+};
+
 const TOKEN_RADIUS   = 11;
 const MERGE_THRESHOLD = TOKEN_RADIUS * 2.2;
 
@@ -83,6 +90,8 @@ export default function BattleMap() {
   const [selectedMap,  setSelectedMap]  = useState("");
   // sessionId is derived from the selected map — one Firestore collection per map
   const sessionId = selectedMap || "default";
+  // True when a non-admin with a known nation views another nation's map
+  const onForeignMap = !isAdmin && !!selectedMap && !!userProfile?.nation && selectedMap !== userProfile.nation;
 
   // ── Token state (source of truth = local; synced to/from Firestore) ──────────
   const [tokens,       setTokens]       = useState([]);
@@ -438,6 +447,7 @@ export default function BattleMap() {
     if (mode !== "place") return;
     if (dragPanRef.current) return;
     if (!canPlaceFaction(placingFaction)) return;
+    if (!isAdmin && selectedMap && userProfile?.nation && selectedMap !== userProfile.nation) return;
     const mb = getMapScreenBounds(mapImgRef.current);
     if (!mb) return;
 
@@ -461,9 +471,10 @@ export default function BattleMap() {
         count: 1,
         notes: [],
         ownerId: userProfile?.uid ?? null,
+        nation:  userProfile?.nation ?? null,
       }]);
     }
-  }, [mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave]);
+  }, [mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdmin, selectedMap]);
 
   const handleDragStart = (e, id) => {
     if (mode !== "move") return;
@@ -559,6 +570,7 @@ export default function BattleMap() {
         count: n,
         notes: [],
         ownerId: userProfile?.uid ?? null,
+        nation:  selectedToken.nation ?? null,
       },
     ]);
     setSplitCount(1);
@@ -763,6 +775,18 @@ export default function BattleMap() {
               <span style={{ fontFamily: "'Cinzel', serif", fontSize: 11, color: isAdmin ? "#f0d060" : "#70a0e0", letterSpacing: "0.06em" }}>
                 {userProfile.displayName}
               </span>
+              {userProfile.nation && NATIONS[userProfile.nation] && (
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{
+                    display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+                    background: NATIONS[userProfile.nation].border,
+                    flexShrink: 0,
+                  }} />
+                  <span style={{ fontSize: 10, color: NATIONS[userProfile.nation].border, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                    {NATIONS[userProfile.nation].label}
+                  </span>
+                </span>
+              )}
               <span style={{ fontSize: 10, color: isAdmin ? "#8b6914" : "#2a5a8b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                 {isAdmin ? "GM" : "Player"}
               </span>
@@ -857,7 +881,11 @@ export default function BattleMap() {
               }}>
                   {tokens.map(token => {
                     const locked  = !canMutateToken(token);
-                    const faction = FACTIONS[token.faction];
+                    const faction = FACTIONS[token.faction] ?? FACTIONS.player;
+                    const nationStyle = token.faction === "player" && token.nation && NATIONS[token.nation]
+                      ? NATIONS[token.nation]
+                      : null;
+                    const tokenColor  = nationStyle ?? faction;
                     return (
                       <div
                         key={token.id}
@@ -870,7 +898,7 @@ export default function BattleMap() {
                             tokenTouchRef.current = { id: token.id };
                           }
                         }}
-                        title={token.notes?.join(" | ") || `${faction.label} troops${locked ? " (not yours)" : ""}`}
+                        title={token.notes?.join(" | ") || `${faction.label}${token.nation ? ` (${NATIONS[token.nation]?.label ?? token.nation})` : ""}${locked ? " — not yours" : ""}`}
                         className={locked ? "token-locked" : ""}
                         style={{
                           position: "absolute",
@@ -879,8 +907,8 @@ export default function BattleMap() {
                           width:  TOKEN_RADIUS * 2,
                           height: TOKEN_RADIUS * 2,
                           borderRadius: "50%",
-                          background: `radial-gradient(circle at 35% 35%, ${faction.border}33, ${faction.color})`,
-                          border: `2.5px solid ${selected === token.id ? "#f0d060" : faction.border}`,
+                          background: `radial-gradient(circle at 35% 35%, ${tokenColor.border}33, ${tokenColor.color})`,
+                          border: `2.5px solid ${selected === token.id ? "#f0d060" : tokenColor.border}`,
                           boxShadow: selected === token.id
                             ? `0 0 0 3px #f0d06066, 0 2px 12px #0008`
                             : `0 2px 8px #0006`,
@@ -913,6 +941,19 @@ export default function BattleMap() {
               </div>
             )}
           </div>
+
+          {/* Foreign territory banner */}
+          {onForeignMap && (
+            <div style={{
+              position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)",
+              background: "#1a0e05dd", border: "1px solid #5c3d11", borderRadius: 4,
+              padding: "7px 18px", pointerEvents: "none", zIndex: 40,
+              fontFamily: "'Cinzel', serif", fontSize: 11, letterSpacing: "0.09em",
+              textTransform: "uppercase", color: "#8b7040", whiteSpace: "nowrap",
+            }}>
+              Foreign territory — tokens cannot be placed here
+            </div>
+          )}
 
           {/* Border ornaments */}
           <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} xmlns="http://www.w3.org/2000/svg">
@@ -963,11 +1004,16 @@ export default function BattleMap() {
                   <p style={{ margin: "0 0 4px", fontSize: 13, color: "#8b7040" }}>Faction</p>
                   <p style={{
                     margin: "0 0 10px", fontSize: 15, fontWeight: 600,
-                    color: selectedToken.faction === "player" ? "#a8d5b5"
-                         : selectedToken.faction === "enemy"  ? "#e8a0a0"
-                         : "#e8a0d2",
+                    color: selectedToken.faction === "player" && selectedToken.nation && NATIONS[selectedToken.nation]
+                      ? NATIONS[selectedToken.nation].border
+                      : selectedToken.faction === "player" ? "#a8d5b5"
+                      : selectedToken.faction === "enemy"  ? "#e8a0a0"
+                      : "#e8a0d2",
                   }}>
                     {FACTIONS[selectedToken.faction].icon} {FACTIONS[selectedToken.faction].label}
+                    {selectedToken.faction === "player" && selectedToken.nation && NATIONS[selectedToken.nation] && (
+                      <span style={{ fontSize: 12, fontWeight: 400, opacity: 0.8 }}> — {NATIONS[selectedToken.nation].label}</span>
+                    )}
                   </p>
                   <p style={{ margin: "0 0 4px", fontSize: 13, color: "#8b7040" }}>Count</p>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
