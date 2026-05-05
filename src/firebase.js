@@ -36,12 +36,14 @@ export async function getOrCreateUserProfile(firebaseUser, characterName) {
     await setDoc(ref, profile);
     return profile;
   }
-  if (characterName) {
-    const updated = { ...snap.data(), displayName: characterName };
+  const stored = snap.data();
+  const resolved = characterName ?? firebaseUser.displayName;
+  if (resolved && resolved !== stored.displayName) {
+    const updated = { ...stored, displayName: resolved };
     await setDoc(ref, updated, { merge: true });
     return updated;
   }
-  return snap.data();
+  return stored;
 }
 
 export function subscribeToTokens(sessionId, callback) {
