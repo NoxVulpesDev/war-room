@@ -22,19 +22,24 @@ export const auth           = getAuth(app);
 export const db             = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
-export async function getOrCreateUserProfile(firebaseUser) {
+export async function getOrCreateUserProfile(firebaseUser, characterName) {
   const ref  = doc(db, "users", firebaseUser.uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
     const profile = {
       uid:         firebaseUser.uid,
       email:       firebaseUser.email,
-      displayName: firebaseUser.displayName ?? firebaseUser.email.split("@")[0],
+      displayName: characterName ?? firebaseUser.displayName ?? firebaseUser.email.split("@")[0],
       role:        "player",
       createdAt:   serverTimestamp(),
     };
     await setDoc(ref, profile);
     return profile;
+  }
+  if (characterName) {
+    const updated = { ...snap.data(), displayName: characterName };
+    await setDoc(ref, updated, { merge: true });
+    return updated;
   }
   return snap.data();
 }
