@@ -6,10 +6,9 @@ import { useState } from "react";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInWithPopup,
   updateProfile,
 } from "firebase/auth";
-import { auth, googleProvider, getOrCreateUserProfile } from "./firebase";
+import { auth, getOrCreateUserProfile } from "./firebase";
 
 const inputStyle = {
   width: "100%",
@@ -39,13 +38,6 @@ const btnPrimary = {
   textTransform: "uppercase",
   cursor: "pointer",
   transition: "all 0.15s",
-};
-
-const btnGoogle = {
-  ...btnPrimary,
-  background: "linear-gradient(180deg, #1a2d3d 0%, #0f1e2d 100%)",
-  border: "1px solid #2a5a8b",
-  color: "#90c0e8",
 };
 
 const errStyle = {
@@ -100,19 +92,6 @@ export default function AuthModal({ onAuth }) {
         await updateProfile(cred.user, { displayName: displayName.trim() });
         await finish(cred.user);
       }
-    } catch (err) {
-      setError(friendlyError(err.code));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogle = async () => {
-    setError("");
-    setLoading(true);
-    try {
-      const cred = await signInWithPopup(auth, googleProvider);
-      await finish(cred.user);
     } catch (err) {
       setError(friendlyError(err.code));
     } finally {
@@ -238,17 +217,6 @@ export default function AuthModal({ onAuth }) {
               {loading ? "…" : tab === "login" ? "⚔ Enter the Council" : "✦ Join the Council"}
             </button>
 
-            <KnotDivider />
-
-            <button
-              style={{ ...btnGoogle, opacity: loading ? 0.6 : 1 }}
-              onClick={handleGoogle}
-              disabled={loading}
-              onMouseOver={e => { if (!loading) e.target.style.background = "linear-gradient(180deg, #253d52 0%, #1a2d3d 100%)"; }}
-              onMouseOut={e => { e.target.style.background = "linear-gradient(180deg, #1a2d3d 0%, #0f1e2d 100%)"; }}
-            >
-              {loading ? "…" : "G  Continue with Google"}
-            </button>
           </div>
 
           {/* Role note */}
@@ -280,7 +248,6 @@ function friendlyError(code) {
     "auth/email-already-in-use":     "An account with that email already exists.",
     "auth/weak-password":            "Password must be at least 6 characters.",
     "auth/too-many-requests":        "Too many attempts. Please wait and try again.",
-    "auth/popup-closed-by-user":     "Google sign-in was cancelled.",
     "auth/network-request-failed":   "Network error — check your connection.",
   };
   return map[code] ?? `Authentication error (${code})`;
