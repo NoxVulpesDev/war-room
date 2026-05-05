@@ -1,5 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
+const MAPS = [
+  { id: "erin",      label: "Erin",      src: "/Erin.jpg" },
+  { id: "manx",      label: "Manx",      src: "/Manx.jpg" },
+  { id: "cymru",     label: "Cymru",     src: "/Cymru.jpg" },
+  { id: "caledonia", label: "Caledonia", src: "/Caledonia.jpg" },
+];
+
 const FACTIONS = {
   player: { color: "#2d6e3e", border: "#a8d5b5", label: "Player", icon: "⚔" },
   enemy:  { color: "#7a1c1c", border: "#e8a0a0", label: "Enemy",  icon: "☠" },
@@ -32,6 +39,7 @@ function KnotCorner({ x = 0, y = 0 }) {
 
 export default function BattleMap() {
   const [mapImage, setMapImage] = useState(null);
+  const [selectedMap, setSelectedMap] = useState("");
   const [tokens, setTokens] = useState([]);
   const [selected, setSelected] = useState(null);
   const [placingFaction, setPlacingFaction] = useState("player");
@@ -48,17 +56,16 @@ export default function BattleMap() {
   const [isGrabbing, setIsGrabbing] = useState(false);
 
   const canvasRef = useRef(null);
-  const fileRef = useRef(null);
   const zoomRef = useRef(1);
   const panRef = useRef({ x: 0, y: 0 });
   const dragPanRef = useRef(null); // {mouseX, mouseY, panX, panY} while panning
 
   const selectedToken = tokens.find(t => t.id === selected);
 
-  const handleMapUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setMapImage(URL.createObjectURL(file));
+  const handleMapSelect = (e) => {
+    const map = MAPS.find(m => m.id === e.target.value);
+    setSelectedMap(e.target.value);
+    setMapImage(map ? map.src : null);
   };
 
   // ── Wheel zoom (non-passive so we can preventDefault) ──
@@ -352,12 +359,30 @@ export default function BattleMap() {
         </div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {/* Map upload */}
-          <button className="toolbar-btn" onClick={() => fileRef.current.click()}>
-            + Upload Map
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" onChange={handleMapUpload}
-            style={{ display: "none" }} />
+          {/* Map selector */}
+          <select
+            value={selectedMap}
+            onChange={handleMapSelect}
+            style={{
+              fontFamily: "'Cinzel', serif",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.05em",
+              padding: "7px 14px",
+              borderRadius: 3,
+              border: "1px solid #5c3d11",
+              background: "#2c1a06",
+              color: selectedMap ? "#f5e8c0" : "#8b7040",
+              cursor: "pointer",
+              textTransform: "uppercase",
+              outline: "none",
+            }}
+          >
+            <option value="">— Select Map —</option>
+            {MAPS.map(m => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
 
           <div style={{ width: 1, height: 28, background: "#3a2209" }} />
 
@@ -456,7 +481,7 @@ export default function BattleMap() {
                 <path d="M16 60 L64 60" stroke="#2c1a06" strokeWidth="1" />
               </svg>
               <p style={{ color: "#3a2209", fontFamily: "'Cinzel', serif", fontSize: 14, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                Upload a map to begin
+                Select a map to begin
               </p>
               <p style={{ color: "#2c1a06", fontSize: 13, margin: 0 }}>
                 Or click to place tokens on the grid
