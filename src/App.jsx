@@ -1,10 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
-// ── Konva loaded via CDN script tag below ──
-// We use a raw HTML artifact approach via useEffect to init Konva imperatively
-// since we can't install npm packages in artifact context.
-// Instead, this is a fully self-contained React component using HTML5 Canvas via useRef.
-
 const FACTIONS = {
   player: { color: "#2d6e3e", border: "#a8d5b5", label: "Player", icon: "⚔" },
   enemy:  { color: "#7a1c1c", border: "#e8a0a0", label: "Enemy",  icon: "☠" },
@@ -21,41 +16,7 @@ function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function KnotBorder() {
-  return (
-    <svg
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 10 }}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Corner knotwork ornaments */}
-      {[
-        [0, 0, 0],
-        [1, 0, 90],
-        [1, 1, 180],
-        [0, 1, 270],
-      ].map(([cx, cy, rot], i) => (
-        <g
-          key={i}
-          transform={`translate(${cx === 0 ? 4 : "calc(100% - 4)"}, ${cy === 0 ? 4 : "calc(100% - 4)"}) rotate(${rot})`}
-          style={{ transformOrigin: cx === 0 ? "4px 4px" : "calc(100% - 4px) calc(100% - 4px)" }}
-        >
-          <KnotCorner x={cx === 0 ? 0 : -52} y={cy === 0 ? 0 : -52} rot={rot} />
-        </g>
-      ))}
-      {/* Border lines */}
-      <rect x="6" y="6" width="calc(100% - 12px)" height="calc(100% - 12px)"
-        fill="none" stroke="#8b6914" strokeWidth="1.5" strokeDasharray="none" rx="2"
-        style={{ width: "calc(100% - 12px)", height: "calc(100% - 12px)" }}
-      />
-      <rect x="10" y="10" width="calc(100% - 20px)" height="calc(100% - 20px)"
-        fill="none" stroke="#c4952a" strokeWidth="0.5" rx="1"
-        style={{ width: "calc(100% - 20px)", height: "calc(100% - 20px)" }}
-      />
-    </svg>
-  );
-}
-
-function KnotCorner({ x = 0, y = 0, rot = 0 }) {
+function KnotCorner({ x = 0, y = 0 }) {
   return (
     <g transform={`translate(${x}, ${y})`}>
       <path d="M0,0 Q8,0 8,8 Q8,16 16,16 Q24,16 24,24 Q24,32 32,32 Q40,32 40,40 L48,40 L48,48 L0,48 Z"
@@ -69,96 +30,144 @@ function KnotCorner({ x = 0, y = 0, rot = 0 }) {
   );
 }
 
-function TokenCircle({ token, selected, onSelect, onDragStart }) {
-  const f = FACTIONS[token.faction];
-  return (
-    <div
-      draggable
-      onDragStart={(e) => onDragStart(e, token.id)}
-      onClick={() => onSelect(token.id)}
-      title={token.notes?.join(" | ") || `${f.label} troops`}
-      style={{
-        position: "absolute",
-        left: token.x - TOKEN_RADIUS,
-        top: token.y - TOKEN_RADIUS,
-        width: TOKEN_RADIUS * 2,
-        height: TOKEN_RADIUS * 2,
-        borderRadius: "50%",
-        background: `radial-gradient(circle at 35% 35%, ${f.border}44, ${f.color})`,
-        border: `2.5px solid ${selected ? "#f0d060" : f.border}`,
-        boxShadow: selected
-          ? `0 0 0 3px #f0d06088, 0 2px 12px #0008`
-          : `0 2px 8px #0006, inset 0 1px 0 ${f.border}33`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexDirection: "column",
-        cursor: "grab",
-        userSelect: "none",
-        zIndex: selected ? 20 : 10,
-        transition: "box-shadow 0.15s",
-        fontFamily: "'Cinzel', serif",
-      }}
-    >
-      <span style={{ fontSize: token.count > 1 ? 13 : 16, lineHeight: 1 }}>{f.icon}</span>
-      {token.count > 1 && (
-        <span style={{
-          fontSize: 10, fontWeight: 700, color: "#f5e8c0", lineHeight: 1,
-          textShadow: "0 1px 2px #0008"
-        }}>
-          ×{token.count}
-        </span>
-      )}
-    </div>
-  );
-}
-
 export default function BattleMap() {
   const [mapImage, setMapImage] = useState(null);
   const [tokens, setTokens] = useState([]);
   const [selected, setSelected] = useState(null);
   const [placingFaction, setPlacingFaction] = useState("player");
-  const [mode, setMode] = useState("place"); // "place" | "move" | "delete"
+  const [mode, setMode] = useState("place"); // "place" | "move" | "pan" | "delete"
   const [noteInput, setNoteInput] = useState("");
   const [dragId, setDragId] = useState(null);
   const [showPanel, setShowPanel] = useState(false);
-  const [role] = useState("admin"); // Phase 1: admin sees all
+  const [role] = useState("admin");
+  const [splitCount, setSplitCount] = useState(1);
+
+  // Pan & zoom
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isGrabbing, setIsGrabbing] = useState(false);
+
   const canvasRef = useRef(null);
   const fileRef = useRef(null);
+  const zoomRef = useRef(1);
+  const panRef = useRef({ x: 0, y: 0 });
+  const dragPanRef = useRef(null); // {mouseX, mouseY, panX, panY} while panning
 
   const selectedToken = tokens.find(t => t.id === selected);
 
   const handleMapUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setMapImage(url);
+    setMapImage(URL.createObjectURL(file));
   };
 
+  // ── Wheel zoom (non-passive so we can preventDefault) ──
+  const handleWheel = useCallback((e) => {
+    e.preventDefault();
+    const rect = canvasRef.current.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    const newZoom = Math.min(Math.max(zoomRef.current * factor, 0.1), 10);
+    const scale = newZoom / zoomRef.current;
+    const newPan = {
+      x: mx - (mx - panRef.current.x) * scale,
+      y: my - (my - panRef.current.y) * scale,
+    };
+    zoomRef.current = newZoom;
+    panRef.current = newPan;
+    setZoom(newZoom);
+    setPan(newPan);
+  }, []);
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [handleWheel]);
+
+  // ── Mouse pan: middle-click always, left-click in pan mode ──
+  const handleMouseDown = useCallback((e) => {
+    if (e.button === 1 || (e.button === 0 && mode === "pan")) {
+      e.preventDefault();
+      dragPanRef.current = {
+        mouseX: e.clientX,
+        mouseY: e.clientY,
+        panX: panRef.current.x,
+        panY: panRef.current.y,
+      };
+      setIsGrabbing(true);
+    }
+  }, [mode]);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!dragPanRef.current) return;
+    const newPan = {
+      x: dragPanRef.current.panX + (e.clientX - dragPanRef.current.mouseX),
+      y: dragPanRef.current.panY + (e.clientY - dragPanRef.current.mouseY),
+    };
+    panRef.current = newPan;
+    setPan(newPan);
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    if (dragPanRef.current) {
+      dragPanRef.current = null;
+      setIsGrabbing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
+
+  // ── Zoom controls (zoom toward canvas center) ──
+  const adjustZoom = useCallback((factor) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const newZoom = Math.min(Math.max(zoomRef.current * factor, 0.1), 10);
+    const scale = newZoom / zoomRef.current;
+    const newPan = {
+      x: cx - (cx - panRef.current.x) * scale,
+      y: cy - (cy - panRef.current.y) * scale,
+    };
+    zoomRef.current = newZoom;
+    panRef.current = newPan;
+    setZoom(newZoom);
+    setPan(newPan);
+  }, []);
+
+  const resetView = useCallback(() => {
+    const newPan = { x: 0, y: 0 };
+    panRef.current = newPan;
+    zoomRef.current = 1;
+    setPan(newPan);
+    setZoom(1);
+  }, []);
+
+  // ── Canvas interactions (coords converted to world space) ──
   const handleCanvasClick = useCallback((e) => {
     if (mode !== "place") return;
+    if (dragPanRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = (e.clientX - rect.left - panRef.current.x) / zoomRef.current;
+    const y = (e.clientY - rect.top - panRef.current.y) / zoomRef.current;
 
-    // Check merge
     const nearby = tokens.find(
       t => t.faction === placingFaction && dist(t, { x, y }) < MERGE_THRESHOLD
     );
 
     if (nearby) {
-      setTokens(prev =>
-        prev.map(t => t.id === nearby.id ? { ...t, count: t.count + 1 } : t)
-      );
+      setTokens(prev => prev.map(t => t.id === nearby.id ? { ...t, count: t.count + 1 } : t));
     } else {
-      const newToken = {
-        id: generateId(),
-        faction: placingFaction,
-        x, y,
-        count: 1,
-        notes: [],
-      };
-      setTokens(prev => [...prev, newToken]);
+      setTokens(prev => [...prev, { id: generateId(), faction: placingFaction, x, y, count: 1, notes: [] }]);
     }
   }, [mode, tokens, placingFaction]);
 
@@ -166,7 +175,6 @@ export default function BattleMap() {
     if (mode !== "move") return;
     setDragId(id);
     e.dataTransfer.effectAllowed = "move";
-    // Transparent drag ghost
     const ghost = document.createElement("div");
     ghost.style.opacity = "0";
     document.body.appendChild(ghost);
@@ -178,13 +186,12 @@ export default function BattleMap() {
     e.preventDefault();
     if (!dragId) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = (e.clientX - rect.left - panRef.current.x) / zoomRef.current;
+    const y = (e.clientY - rect.top - panRef.current.y) / zoomRef.current;
 
     const dragged = tokens.find(t => t.id === dragId);
     if (!dragged) return;
 
-    // Check merge with existing token of same faction
     const mergeTarget = tokens.find(
       t => t.id !== dragId && t.faction === dragged.faction && dist(t, { x, y }) < MERGE_THRESHOLD
     );
@@ -205,6 +212,7 @@ export default function BattleMap() {
   }, [dragId, tokens]);
 
   const handleTokenClick = (id) => {
+    if (mode === "pan") return;
     if (mode === "delete") {
       setTokens(prev => prev.filter(t => t.id !== id));
       if (selected === id) setSelected(null);
@@ -216,23 +224,44 @@ export default function BattleMap() {
 
   const addNote = () => {
     if (!noteInput.trim() || !selected) return;
-    setTokens(prev =>
-      prev.map(t => t.id === selected
-        ? { ...t, notes: [...t.notes, noteInput.trim()] }
-        : t
-      )
-    );
+    setTokens(prev => prev.map(t => t.id === selected ? { ...t, notes: [...t.notes, noteInput.trim()] } : t));
     setNoteInput("");
   };
 
   const removeNote = (tokenId, idx) => {
-    setTokens(prev =>
-      prev.map(t => t.id === tokenId
-        ? { ...t, notes: t.notes.filter((_, i) => i !== idx) }
-        : t
-      )
-    );
+    setTokens(prev => prev.map(t => t.id === tokenId
+      ? { ...t, notes: t.notes.filter((_, i) => i !== idx) }
+      : t
+    ));
   };
+
+  // Reset split count whenever a different token is selected
+  useEffect(() => { setSplitCount(1); }, [selected]);
+
+  const handleSplit = () => {
+    if (!selectedToken || selectedToken.count < 2) return;
+    const n = Math.min(Math.max(1, splitCount), selectedToken.count - 1);
+    // Place the new token diagonally offset so it doesn't stack
+    const offset = TOKEN_RADIUS * 3;
+    setTokens(prev => [
+      ...prev.map(t => t.id === selected ? { ...t, count: t.count - n } : t),
+      {
+        id: generateId(),
+        faction: selectedToken.faction,
+        x: selectedToken.x + offset,
+        y: selectedToken.y + offset,
+        count: n,
+        notes: [],
+      },
+    ]);
+    setSplitCount(1);
+  };
+
+  const canvasCursor = isGrabbing ? "grabbing"
+    : mode === "pan" ? "grab"
+    : mode === "place" ? "crosshair"
+    : mode === "delete" ? "not-allowed"
+    : "default";
 
   return (
     <div style={{
@@ -243,7 +272,6 @@ export default function BattleMap() {
       display: "flex",
       flexDirection: "column",
     }}>
-      {/* Google Fonts */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
 
@@ -283,6 +311,7 @@ export default function BattleMap() {
         .mode-btn:hover { background: #2c1a06; color: #c4952a; border-color: #5c3d11; }
         .mode-btn.active { background: #3a2209; border-color: #8b6914; color: #f0d060; box-shadow: 0 0 6px #f0d06022; }
         .mode-btn.delete-active { background: #2d0a0a; border-color: #8b1a1a; color: #e05050; }
+        .mode-btn.pan-active { background: #0a1a2d; border-color: #1a4a8b; color: #70a0e0; }
 
         .note-input {
           background: #1f1005; border: 1px solid #5c3d11; border-radius: 3px;
@@ -290,6 +319,13 @@ export default function BattleMap() {
           padding: 5px 8px; width: 100%; outline: none;
         }
         .note-input:focus { border-color: #8b6914; }
+
+        .zoom-btn {
+          font-family: 'Cinzel', serif; font-size: 14px; font-weight: 700;
+          padding: 4px 9px; border-radius: 3px; border: 1px solid #3a2209;
+          background: #1f1005; color: #8b7040; cursor: pointer; transition: all 0.15s; line-height: 1;
+        }
+        .zoom-btn:hover { background: #2c1a06; color: #c4952a; border-color: #5c3d11; }
       `}</style>
 
       {/* Header */}
@@ -327,12 +363,12 @@ export default function BattleMap() {
 
           {/* Mode */}
           <span style={{ fontSize: 11, color: "#5c4a28", fontFamily: "'Cinzel', serif", letterSpacing: "0.05em" }}>MODE:</span>
-          {["place", "move", "delete"].map(m => (
+          {["place", "move", "pan", "delete"].map(m => (
             <button key={m}
-              className={`mode-btn ${mode === m ? (m === "delete" ? "delete-active" : "active") : ""}`}
+              className={`mode-btn ${mode === m ? (m === "delete" ? "delete-active" : m === "pan" ? "pan-active" : "active") : ""}`}
               onClick={() => setMode(m)}
             >
-              {m === "place" ? "⊕ Place" : m === "move" ? "✦ Move" : "✕ Delete"}
+              {m === "place" ? "⊕ Place" : m === "move" ? "✦ Move" : m === "pan" ? "✥ Pan" : "✕ Delete"}
             </button>
           ))}
 
@@ -350,6 +386,19 @@ export default function BattleMap() {
               >☠ Enemy</button>
             </>
           )}
+
+          <div style={{ width: 1, height: 28, background: "#3a2209" }} />
+
+          {/* Zoom controls */}
+          <button className="zoom-btn" onClick={() => adjustZoom(1.1)}>+</button>
+          <span style={{
+            fontFamily: "'Cinzel', serif", fontSize: 11, color: "#8b7040",
+            minWidth: 42, textAlign: "center", letterSpacing: "0.04em",
+          }}>
+            {Math.round(zoom * 100)}%
+          </span>
+          <button className="zoom-btn" onClick={() => adjustZoom(1 / 1.1)}>−</button>
+          <button className="zoom-btn" onClick={resetView} title="Reset view" style={{ fontSize: 11, padding: "4px 9px" }}>⌂</button>
         </div>
 
         {/* Token count badges */}
@@ -374,7 +423,7 @@ export default function BattleMap() {
       </header>
 
       {/* Main layout */}
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
 
         {/* Canvas area */}
         <div
@@ -384,24 +433,17 @@ export default function BattleMap() {
             position: "relative",
             overflow: "hidden",
             background: mapImage
-              ? "transparent"
+              ? "#0d0800"
               : "repeating-linear-gradient(0deg, #1e1005 0px, #1e1005 39px, #2c1a0611 40px), repeating-linear-gradient(90deg, #1e1005 0px, #1e1005 39px, #2c1a0611 40px)",
-            cursor: mode === "place" ? "crosshair" : mode === "delete" ? "not-allowed" : "default",
+            cursor: canvasCursor,
           }}
           onClick={handleCanvasClick}
+          onMouseDown={handleMouseDown}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
           onDrop={handleCanvasDrop}
+          onContextMenu={(e) => e.preventDefault()}
         >
-          {/* Map image */}
-          {mapImage && (
-            <img
-              src={mapImage}
-              alt="Battle Map"
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", userSelect: "none", pointerEvents: "none" }}
-            />
-          )}
-
-          {/* No map placeholder */}
+          {/* No-map placeholder — static, outside transform */}
           {!mapImage && (
             <div style={{
               position: "absolute", inset: 0, display: "flex", flexDirection: "column",
@@ -422,61 +464,85 @@ export default function BattleMap() {
             </div>
           )}
 
-          {/* Tokens */}
-          {tokens.map(token => (
-            <div
-              key={token.id}
-              draggable={mode === "move"}
-              onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, token.id); }}
-              onClick={(e) => { e.stopPropagation(); handleTokenClick(token.id); }}
-              title={token.notes?.join(" | ") || `${FACTIONS[token.faction].label} troops`}
-              style={{
-                position: "absolute",
-                left: token.x - TOKEN_RADIUS,
-                top: token.y - TOKEN_RADIUS,
-                width: TOKEN_RADIUS * 2,
-                height: TOKEN_RADIUS * 2,
-                borderRadius: "50%",
-                background: token.faction === "player"
-                  ? `radial-gradient(circle at 35% 35%, #a8d5b533, #2d6e3e)`
-                  : `radial-gradient(circle at 35% 35%, #e8a0a033, #7a1c1c)`,
-                border: `2.5px solid ${selected === token.id ? "#f0d060" : token.faction === "player" ? "#4a9e6a" : "#c45252"}`,
-                boxShadow: selected === token.id
-                  ? `0 0 0 3px #f0d06066, 0 2px 12px #0008`
-                  : `0 2px 8px #0006`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexDirection: "column",
-                cursor: mode === "move" ? "grab" : mode === "delete" ? "not-allowed" : "pointer",
-                userSelect: "none",
-                zIndex: selected === token.id ? 20 : 10,
-                transition: "box-shadow 0.15s, border-color 0.15s",
-                fontFamily: "'Cinzel', serif",
-              }}
-            >
-              <span style={{ fontSize: token.count > 1 ? 12 : 16, lineHeight: 1 }}>
-                {FACTIONS[token.faction].icon}
-              </span>
-              {token.count > 1 && (
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#f5e8c0", lineHeight: 1 }}>
-                  ×{token.count}
-                </span>
-              )}
-              {token.notes?.length > 0 && (
-                <span style={{
-                  position: "absolute", top: -4, right: -4,
-                  width: 10, height: 10, borderRadius: "50%",
-                  background: "#c4952a", border: "1px solid #1a0e05",
-                }} />
-              )}
-            </div>
-          ))}
+          {/* Transform container — map image + tokens pan/zoom together */}
+          <div style={{
+            position: "absolute",
+            inset: 0,
+            transformOrigin: "0 0",
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            willChange: "transform",
+          }}>
+            {mapImage && (
+              <img
+                src={mapImage}
+                alt="Battle Map"
+                style={{
+                  position: "absolute", inset: 0,
+                  width: "100%", height: "100%",
+                  objectFit: "contain",
+                  userSelect: "none", pointerEvents: "none",
+                }}
+              />
+            )}
 
-          {/* Border ornaments */}
+            {/* Tokens */}
+            {tokens.map(token => (
+              <div
+                key={token.id}
+                draggable={mode === "move"}
+                onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, token.id); }}
+                onClick={(e) => { e.stopPropagation(); handleTokenClick(token.id); }}
+                title={token.notes?.join(" | ") || `${FACTIONS[token.faction].label} troops`}
+                style={{
+                  position: "absolute",
+                  left: token.x - TOKEN_RADIUS,
+                  top: token.y - TOKEN_RADIUS,
+                  width: TOKEN_RADIUS * 2,
+                  height: TOKEN_RADIUS * 2,
+                  borderRadius: "50%",
+                  background: token.faction === "player"
+                    ? `radial-gradient(circle at 35% 35%, #a8d5b533, #2d6e3e)`
+                    : `radial-gradient(circle at 35% 35%, #e8a0a033, #7a1c1c)`,
+                  border: `2.5px solid ${selected === token.id ? "#f0d060" : token.faction === "player" ? "#4a9e6a" : "#c45252"}`,
+                  boxShadow: selected === token.id
+                    ? `0 0 0 3px #f0d06066, 0 2px 12px #0008`
+                    : `0 2px 8px #0006`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexDirection: "column",
+                  cursor: mode === "move" ? "grab"
+                    : mode === "delete" ? "not-allowed"
+                    : mode === "pan" ? (isGrabbing ? "grabbing" : "grab")
+                    : "pointer",
+                  userSelect: "none",
+                  zIndex: selected === token.id ? 20 : 10,
+                  transition: "box-shadow 0.15s, border-color 0.15s",
+                  fontFamily: "'Cinzel', serif",
+                }}
+              >
+                <span style={{ fontSize: token.count > 1 ? 12 : 16, lineHeight: 1 }}>
+                  {FACTIONS[token.faction].icon}
+                </span>
+                {token.count > 1 && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#f5e8c0", lineHeight: 1 }}>
+                    ×{token.count}
+                  </span>
+                )}
+                {token.notes?.length > 0 && (
+                  <span style={{
+                    position: "absolute", top: -4, right: -4,
+                    width: 10, height: 10, borderRadius: "50%",
+                    background: "#c4952a", border: "1px solid #1a0e05",
+                  }} />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Border ornaments — static overlay, not transformed */}
           <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
             xmlns="http://www.w3.org/2000/svg">
-            {/* Corner triskelion-like ornaments */}
             {[[6, 6], ["calc(100% - 58px)", 6], [6, "calc(100% - 58px)"], ["calc(100% - 58px)", "calc(100% - 58px)"]].map((pos, i) => (
               <g key={i} style={{ transform: `translate(${pos[0]}, ${pos[1]})` }}>
                 <circle cx="26" cy="26" r="20" fill="none" stroke="#3a2209" strokeWidth="0.75" />
@@ -494,17 +560,21 @@ export default function BattleMap() {
           </svg>
         </div>
 
-        {/* Side panel */}
+        {/* Side panel — absolute overlay so the canvas never resizes */}
         <div style={{
-          width: showPanel && selectedToken ? 240 : 0,
-          overflow: "hidden",
-          transition: "width 0.2s",
+          position: "absolute",
+          top: 0, right: 0, bottom: 0,
+          width: 260,
+          transform: `translateX(${showPanel && selectedToken ? 0 : 260}px)`,
+          transition: "transform 0.2s ease",
           borderLeft: "1px solid #3a2209",
           background: "#1f1005",
-          flexShrink: 0,
+          overflowY: "auto",
+          zIndex: 50,
+          boxShadow: showPanel && selectedToken ? "-6px 0 24px #0008" : "none",
         }}>
           {selectedToken && (
-            <div style={{ width: 240, padding: "20px 16px" }}>
+            <div style={{ width: 260, padding: "20px 16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 13, fontWeight: 700, color: "#f0d060", margin: 0, letterSpacing: "0.08em" }}>
                   Token Details
@@ -513,7 +583,6 @@ export default function BattleMap() {
                   style={{ background: "none", border: "none", color: "#5c3d11", cursor: "pointer", fontSize: 16, padding: 0, lineHeight: 1 }}>✕</button>
               </div>
 
-              {/* Token info */}
               <div style={{
                 padding: "10px 12px",
                 background: "#2c1a06",
@@ -535,7 +604,33 @@ export default function BattleMap() {
                 </div>
               </div>
 
-              {/* Notes */}
+              {/* Split forces */}
+              {selectedToken.count > 1 && (
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontSize: 12, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 8px" }}>
+                    Split Forces
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button
+                      onClick={() => setSplitCount(c => Math.max(1, c - 1))}
+                      style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                    >−</button>
+                    <span style={{ fontSize: 15, fontFamily: "'Cinzel', serif", fontWeight: 700, color: "#f5e8c0", minWidth: 24, textAlign: "center" }}>{splitCount}</span>
+                    <button
+                      onClick={() => setSplitCount(c => Math.min(selectedToken.count - 1, c + 1))}
+                      style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                    >+</button>
+                    <button
+                      onClick={handleSplit}
+                      style={{ flex: 1, background: "#1a2d1a", border: "1px solid #2d6e3e", color: "#a8d5b5", borderRadius: 3, padding: "5px 8px", cursor: "pointer", fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: "0.05em", textTransform: "uppercase" }}
+                    >⑃ Split off</button>
+                  </div>
+                  <p style={{ margin: "5px 0 0", fontSize: 11, color: "#5c4a28" }}>
+                    Detaches {splitCount} unit{splitCount !== 1 ? "s" : ""} into a new token nearby
+                  </p>
+                </div>
+              )}
+
               <p style={{ fontSize: 12, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 8px" }}>
                 Field Notes
               </p>
@@ -566,7 +661,6 @@ export default function BattleMap() {
                   style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, padding: "5px 10px", cursor: "pointer", fontFamily: "'Cinzel', serif", fontSize: 11 }}>+</button>
               </div>
 
-              {/* Delete */}
               <button
                 onClick={() => { setTokens(prev => prev.filter(t => t.id !== selected)); setSelected(null); setShowPanel(false); }}
                 style={{
@@ -600,8 +694,8 @@ export default function BattleMap() {
         </span>
         <span>⊕ Place mode: click canvas to place a token</span>
         <span>✦ Move mode: drag tokens to reposition</span>
+        <span>✥ Pan mode: drag to pan · scroll wheel to zoom · middle-click drag always pans</span>
         <span>Tokens of the same faction placed nearby will merge (×count)</span>
-        <span>Click any token to open detail panel</span>
       </footer>
     </div>
   );
