@@ -27,6 +27,27 @@ const SAVE_DEBOUNCE = 1200;
 function dist(a, b) {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
+
+// Compute the objectFit:contain letterbox rect in a container of cW×cH for an image of iW×iH.
+// Returns {x, y, w, h} in the container's own coordinate space.
+function getMapLayoutBounds(cW, cH, iW, iH) {
+  const cAR = cW / cH;
+  const iAR = iW / iH;
+  if (iAR > cAR) {
+    const h = cW / iAR;
+    return { x: 0, y: (cH - h) / 2, w: cW, h };
+  }
+  const w = cH * iAR;
+  return { x: (cW - w) / 2, y: 0, w, h: cH };
+}
+
+// Returns the map-content bounds in viewport coordinates (accounts for zoom/pan via CSS transform).
+function getMapScreenBounds(imgEl) {
+  if (!imgEl?.naturalWidth) return null;
+  const ir = imgEl.getBoundingClientRect();   // element box in screen px (zoom applied)
+  const b  = getMapLayoutBounds(ir.width, ir.height, imgEl.naturalWidth, imgEl.naturalHeight);
+  return { left: ir.left + b.x, top: ir.top + b.y, width: b.w, height: b.h };
+}
 function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -80,8 +101,10 @@ export default function BattleMap() {
   const [zoom, setZoom]           = useState(1);
   const [pan,  setPan]            = useState({ x: 0, y: 0 });
   const [isGrabbing, setIsGrabbing] = useState(false);
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
 
   const canvasRef      = useRef(null);
+  const mapImgRef      = useRef(null);
   const zoomRef        = useRef(1);
   const panRef         = useRef({ x: 0, y: 0 });
   const dragPanRef     = useRef(null);
@@ -89,6 +112,8 @@ export default function BattleMap() {
   const tokenTouchRef  = useRef(null);
   const saveTimerRef   = useRef(null);
   const localTokensRef = useRef([]); // kept in sync for debounced saves
+
+  const [mapNaturalSize, setMapNaturalSize] = useState(null);
 
   const selectedToken = tokens.find(t => t.id === selected);
 
@@ -116,6 +141,19 @@ export default function BattleMap() {
     });
     return unsub;
   }, []);
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setContainerSize({ w: width, h: height });
+    });
+    ro.observe(el);
+    const r = el.getBoundingClientRect();
+    setContainerSize({ w: r.width, h: r.height });
+    return () => ro.disconnect();
+  }, [authReady]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // FIRESTORE REAL-TIME LISTENER  (re-subscribes when map changes)
@@ -188,6 +226,7 @@ export default function BattleMap() {
     const map = MAPS.find(m => m.id === e.target.value);
     setSelectedMap(e.target.value);
     setMapImage(map ? map.src : null);
+    setMapNaturalSize(null);
     setTokens([]); // will be replaced by Firestore listener
     setSelected(null);
   };
@@ -289,10 +328,10 @@ export default function BattleMap() {
       if (tokenTouchRef.current) {
         e.preventDefault();
         const touch = e.touches[0];
-        const rect  = canvasRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        const x = (touch.clientX - rect.left - panRef.current.x) / zoomRef.current;
-        const y = (touch.clientY - rect.top  - panRef.current.y) / zoomRef.current;
+        const mb = getMapScreenBounds(mapImgRef.current);
+        if (!mb) return;
+        const x = (touch.clientX - mb.left) / mb.width;
+        const y = (touch.clientY - mb.top)  / mb.height;
         setTokens(prev => prev.map(t => t.id === tokenTouchRef.current.id ? { ...t, x, y } : t));
       } else if (touchRef.current?.type === "pinch" && e.touches.length === 2) {
         const t1 = e.touches[0], t2 = e.touches[1];
@@ -332,17 +371,20 @@ export default function BattleMap() {
     const onTouchEnd = (e) => {
       if (tokenTouchRef.current) {
         const touch = e.changedTouches[0];
-        const rect  = canvasRef.current?.getBoundingClientRect();
-        if (rect) {
-          const x = (touch.clientX - rect.left - panRef.current.x) / zoomRef.current;
-          const y = (touch.clientY - rect.top  - panRef.current.y) / zoomRef.current;
-          const draggedId = tokenTouchRef.current.id;
+        const mb = getMapScreenBounds(mapImgRef.current);
+        if (mb) {
+          const x = (touch.clientX - mb.left) / mb.width;
+          const y = (touch.clientY - mb.top)  / mb.height;
+          const draggedId       = tokenTouchRef.current.id;
+          const screenThreshold = MERGE_THRESHOLD * zoomRef.current;
           setTokensAndSave(prev => {
-            const dragged     = prev.find(t => t.id === draggedId);
+            const dragged = prev.find(t => t.id === draggedId);
             if (!dragged) return prev;
-            const mergeTarget = prev.find(
-              t => t.id !== draggedId && t.faction === dragged.faction && dist(t, { x, y }) < MERGE_THRESHOLD
-            );
+            const mergeTarget = prev.find(t => {
+              if (t.id === draggedId || t.faction !== dragged.faction) return false;
+              return Math.hypot(t.x * mb.width + mb.left - touch.clientX,
+                                t.y * mb.height + mb.top  - touch.clientY) < screenThreshold;
+            });
             if (mergeTarget) {
               return prev
                 .filter(t => t.id !== draggedId)
@@ -396,14 +438,18 @@ export default function BattleMap() {
     if (mode !== "place") return;
     if (dragPanRef.current) return;
     if (!canPlaceFaction(placingFaction)) return;
+    const mb = getMapScreenBounds(mapImgRef.current);
+    if (!mb) return;
 
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left - panRef.current.x) / zoomRef.current;
-    const y = (e.clientY - rect.top  - panRef.current.y) / zoomRef.current;
+    const x = (e.clientX - mb.left) / mb.width;
+    const y = (e.clientY - mb.top)  / mb.height;
 
-    const nearby = tokens.find(
-      t => t.faction === placingFaction && dist(t, { x, y }) < MERGE_THRESHOLD
-    );
+    const screenThreshold = MERGE_THRESHOLD * zoomRef.current;
+    const nearby = tokens.find(t => {
+      if (t.faction !== placingFaction) return false;
+      return Math.hypot(t.x * mb.width + mb.left - e.clientX,
+                        t.y * mb.height + mb.top  - e.clientY) < screenThreshold;
+    });
 
     if (nearby) {
       setTokensAndSave(prev => prev.map(t => t.id === nearby.id ? { ...t, count: t.count + 1 } : t));
@@ -435,16 +481,21 @@ export default function BattleMap() {
   const handleCanvasDrop = useCallback((e) => {
     e.preventDefault();
     if (!dragId) return;
-    const rect    = canvasRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left - panRef.current.x) / zoomRef.current;
-    const y = (e.clientY - rect.top  - panRef.current.y) / zoomRef.current;
+    const mb = getMapScreenBounds(mapImgRef.current);
+    if (!mb) return;
+
+    const x = (e.clientX - mb.left) / mb.width;
+    const y = (e.clientY - mb.top)  / mb.height;
 
     const dragged = tokens.find(t => t.id === dragId);
     if (!dragged) return;
 
-    const mergeTarget = tokens.find(
-      t => t.id !== dragId && t.faction === dragged.faction && dist(t, { x, y }) < MERGE_THRESHOLD
-    );
+    const screenThreshold = MERGE_THRESHOLD * zoomRef.current;
+    const mergeTarget = tokens.find(t => {
+      if (t.id === dragId || t.faction !== dragged.faction) return false;
+      return Math.hypot(t.x * mb.width + mb.left - e.clientX,
+                        t.y * mb.height + mb.top  - e.clientY) < screenThreshold;
+    });
 
     if (mergeTarget) {
       setTokensAndSave(prev => prev
@@ -495,8 +546,9 @@ export default function BattleMap() {
 
   const handleSplit = () => {
     if (!selectedToken || selectedToken.count < 2) return;
-    const n      = Math.min(Math.max(1, splitCount), selectedToken.count - 1);
-    const offset = TOKEN_RADIUS * 3;
+    const n    = Math.min(Math.max(1, splitCount), selectedToken.count - 1);
+    const mb   = getMapScreenBounds(mapImgRef.current);
+    const offset = (TOKEN_RADIUS * 3) / (mb?.width ?? 800);
     setTokensAndSave(prev => [
       ...prev.map(t => t.id === selected ? { ...t, count: t.count - n } : t),
       {
@@ -530,6 +582,10 @@ export default function BattleMap() {
       </div>
     );
   }
+
+  const layoutBounds = (mapNaturalSize && containerSize.w)
+    ? getMapLayoutBounds(containerSize.w, containerSize.h, mapNaturalSize.w, mapNaturalSize.h)
+    : null;
 
   return (
     <div style={{
@@ -779,67 +835,83 @@ export default function BattleMap() {
             willChange: "transform",
           }}>
             {mapImage && (
-              <img src={mapImage} alt="Battle Map" style={{
-                position: "absolute", inset: 0, width: "100%", height: "100%",
-                objectFit: "contain", userSelect: "none", pointerEvents: "none",
-              }} />
+              <img
+                ref={mapImgRef}
+                src={mapImage}
+                alt="Battle Map"
+                onLoad={(e) => setMapNaturalSize({ w: e.target.naturalWidth, h: e.target.naturalHeight })}
+                style={{
+                  position: "absolute", inset: 0, width: "100%", height: "100%",
+                  objectFit: "contain", userSelect: "none", pointerEvents: "none",
+                }}
+              />
             )}
 
-            {/* Tokens */}
-            {tokens.map(token => {
-              const locked   = !canMutateToken(token);
-              const faction  = FACTIONS[token.faction];
-              return (
-                <div
-                  key={token.id}
-                  draggable={mode === "move" && !locked}
-                  onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, token.id); }}
-                  onClick={(e) => { e.stopPropagation(); handleTokenClick(token.id); }}
-                  onTouchStart={(e) => {
-                    if (mode === "move" && !locked) {
-                      e.stopPropagation();
-                      tokenTouchRef.current = { id: token.id };
-                    }
-                  }}
-                  title={token.notes?.join(" | ") || `${faction.label} troops${locked ? " (not yours)" : ""}`}
-                  className={locked ? "token-locked" : ""}
-                  style={{
-                    position: "absolute",
-                    left: token.x - TOKEN_RADIUS,
-                    top:  token.y - TOKEN_RADIUS,
-                    width:  TOKEN_RADIUS * 2,
-                    height: TOKEN_RADIUS * 2,
-                    borderRadius: "50%",
-                    background: `radial-gradient(circle at 35% 35%, ${faction.border}33, ${faction.color})`,
-                    border: `2.5px solid ${selected === token.id ? "#f0d060" : faction.border}`,
-                    boxShadow: selected === token.id
-                      ? `0 0 0 3px #f0d06066, 0 2px 12px #0008`
-                      : `0 2px 8px #0006`,
-                    display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
-                    cursor: locked ? "not-allowed"
-                      : mode === "move" ? "grab"
-                      : mode === "delete" ? "not-allowed"
-                      : "pointer",
-                    userSelect: "none",
-                    zIndex: selected === token.id ? 20 : 10,
-                    transition: "box-shadow 0.15s, border-color 0.15s",
-                    fontFamily: "'Cinzel', serif",
-                  }}
-                >
-                  <span style={{ fontSize: token.count > 1 ? 12 : 16, lineHeight: 1 }}>{faction.icon}</span>
-                  {token.count > 1 && (
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "#f5e8c0", lineHeight: 1 }}>×{token.count}</span>
-                  )}
-                  {token.notes?.length > 0 && (
-                    <span style={{
-                      position: "absolute", top: -4, right: -4,
-                      width: 10, height: 10, borderRadius: "50%",
-                      background: "#c4952a", border: "1px solid #1a0e05",
-                    }} />
-                  )}
-                </div>
-              );
-            })}
+            {/* Token layer — absolutely positioned to exactly overlay map content */}
+            {layoutBounds && (
+              <div style={{
+                position: "absolute",
+                left: layoutBounds.x, top: layoutBounds.y,
+                width: layoutBounds.w, height: layoutBounds.h,
+                pointerEvents: "none",
+              }}>
+                  {tokens.map(token => {
+                    const locked  = !canMutateToken(token);
+                    const faction = FACTIONS[token.faction];
+                    return (
+                      <div
+                        key={token.id}
+                        draggable={mode === "move" && !locked}
+                        onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, token.id); }}
+                        onClick={(e) => { e.stopPropagation(); handleTokenClick(token.id); }}
+                        onTouchStart={(e) => {
+                          if (mode === "move" && !locked) {
+                            e.stopPropagation();
+                            tokenTouchRef.current = { id: token.id };
+                          }
+                        }}
+                        title={token.notes?.join(" | ") || `${faction.label} troops${locked ? " (not yours)" : ""}`}
+                        className={locked ? "token-locked" : ""}
+                        style={{
+                          position: "absolute",
+                          left: `calc(${token.x * 100}% - ${TOKEN_RADIUS}px)`,
+                          top:  `calc(${token.y * 100}% - ${TOKEN_RADIUS}px)`,
+                          width:  TOKEN_RADIUS * 2,
+                          height: TOKEN_RADIUS * 2,
+                          borderRadius: "50%",
+                          background: `radial-gradient(circle at 35% 35%, ${faction.border}33, ${faction.color})`,
+                          border: `2.5px solid ${selected === token.id ? "#f0d060" : faction.border}`,
+                          boxShadow: selected === token.id
+                            ? `0 0 0 3px #f0d06066, 0 2px 12px #0008`
+                            : `0 2px 8px #0006`,
+                          display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
+                          cursor: locked ? "not-allowed"
+                            : mode === "move" ? "grab"
+                            : mode === "delete" ? "not-allowed"
+                            : "pointer",
+                          userSelect: "none",
+                          pointerEvents: "all",
+                          zIndex: selected === token.id ? 20 : 10,
+                          transition: "box-shadow 0.15s, border-color 0.15s",
+                          fontFamily: "'Cinzel', serif",
+                        }}
+                      >
+                        <span style={{ fontSize: token.count > 1 ? 12 : 16, lineHeight: 1 }}>{faction.icon}</span>
+                        {token.count > 1 && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "#f5e8c0", lineHeight: 1 }}>×{token.count}</span>
+                        )}
+                        {token.notes?.length > 0 && (
+                          <span style={{
+                            position: "absolute", top: -4, right: -4,
+                            width: 10, height: 10, borderRadius: "50%",
+                            background: "#c4952a", border: "1px solid #1a0e05",
+                          }} />
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
 
           {/* Border ornaments */}

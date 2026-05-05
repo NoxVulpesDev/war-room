@@ -73,8 +73,8 @@ export default function AuthModal({ onAuth }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const finish = async (firebaseUser) => {
-    const profile = await getOrCreateUserProfile(firebaseUser);
+  const finish = async (firebaseUser, characterName) => {
+    const profile = await getOrCreateUserProfile(firebaseUser, characterName);
     onAuth(firebaseUser, profile);
   };
 
@@ -90,7 +90,7 @@ export default function AuthModal({ onAuth }) {
         if (!displayName.trim()) { setError("Enter a display name."); setLoading(false); return; }
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(cred.user, { displayName: displayName.trim() });
-        await finish(cred.user);
+        await finish(cred.user, displayName.trim());
       }
     } catch (err) {
       setError(friendlyError(err.code));
