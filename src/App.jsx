@@ -10,6 +10,7 @@ const MAPS = [
 const FACTIONS = {
   player: { color: "#2d6e3e", border: "#a8d5b5", label: "Player", icon: "⚔" },
   enemy:  { color: "#7a1c1c", border: "#e8a0a0", label: "Enemy",  icon: "☠" },
+  contested:  { color: "#640264", border: "#e8a0d2", label: "Contested",  icon: "⚔" },
 };
 
 const TOKEN_RADIUS = 11;
@@ -309,8 +310,9 @@ export default function BattleMap() {
           color: #f5e8c0;
           box-shadow: 0 0 8px #c4952a44;
         }
-        .toolbar-btn.player-active { background: #1a3d26; border-color: #4a9e6a; color: #a8d5b5; }
-        .toolbar-btn.enemy-active  { background: #3d1010; border-color: #c45252; color: #e8a0a0; }
+        .toolbar-btn.player-active    { background: #1a3d26; border-color: #4a9e6a; color: #a8d5b5; }
+        .toolbar-btn.enemy-active     { background: #3d1010; border-color: #c45252; color: #e8a0a0; }
+        .toolbar-btn.contested-active { background: #2d0a2d; border-color: #a050a0; color: #e8a0d2; }
 
         .mode-btn { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
           padding: 6px 12px; border-radius: 3px; border: 1px solid #3a2209; background: #1f1005;
@@ -409,6 +411,10 @@ export default function BattleMap() {
                 className={`toolbar-btn ${placingFaction === "enemy" ? "enemy-active" : ""}`}
                 onClick={() => setPlacingFaction("enemy")}
               >☠ Enemy</button>
+              <button
+                className={`toolbar-btn ${placingFaction === "contested" ? "contested-active" : ""}`}
+                onClick={() => setPlacingFaction("contested")}
+              >⚔ Contested</button>
             </>
           )}
 
@@ -434,11 +440,11 @@ export default function BattleMap() {
               <div key={key} style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "4px 10px", borderRadius: 3,
-                background: key === "player" ? "#1a3d2633" : "#3d101033",
-                border: `1px solid ${key === "player" ? "#2d6e3e" : "#7a1c1c"}`,
+                background: `${f.color}33`,
+                border: `1px solid ${f.color}`,
               }}>
                 <span style={{ fontSize: 14 }}>{f.icon}</span>
-                <span style={{ fontFamily: "'Cinzel', serif", fontSize: 12, color: key === "player" ? "#a8d5b5" : "#e8a0a0" }}>
+                <span style={{ fontFamily: "'Cinzel', serif", fontSize: 12, color: f.border }}>
                   {total}
                 </span>
               </div>
@@ -525,10 +531,8 @@ export default function BattleMap() {
                   width: TOKEN_RADIUS * 2,
                   height: TOKEN_RADIUS * 2,
                   borderRadius: "50%",
-                  background: token.faction === "player"
-                    ? `radial-gradient(circle at 35% 35%, #a8d5b533, #2d6e3e)`
-                    : `radial-gradient(circle at 35% 35%, #e8a0a033, #7a1c1c)`,
-                  border: `2.5px solid ${selected === token.id ? "#f0d060" : token.faction === "player" ? "#4a9e6a" : "#c45252"}`,
+                  background: `radial-gradient(circle at 35% 35%, ${FACTIONS[token.faction].border}33, ${FACTIONS[token.faction].color})`,
+                  border: `2.5px solid ${selected === token.id ? "#f0d060" : FACTIONS[token.faction].border}`,
                   boxShadow: selected === token.id
                     ? `0 0 0 3px #f0d06066, 0 2px 12px #0008`
                     : `0 2px 8px #0006`,
