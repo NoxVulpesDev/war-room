@@ -39,11 +39,23 @@ export async function getOrCreateUserProfile(firebaseUser, characterName, nation
   }
   const stored = snap.data();
   const resolved = characterName ?? firebaseUser.displayName;
+  const updated = { ...stored };
+  let needsUpdate = false;
+
   if (resolved && resolved !== stored.displayName) {
-    const updated = { ...stored, displayName: resolved };
+    updated.displayName = resolved;
+    needsUpdate = true;
+  }
+  if (nation && nation !== stored.nation) {
+    updated.nation = nation;
+    needsUpdate = true;
+  }
+
+  if (needsUpdate) {
     await setDoc(ref, updated, { merge: true });
     return updated;
   }
+
   return stored;
 }
 
