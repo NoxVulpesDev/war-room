@@ -1,0 +1,71 @@
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import {
+  getFirestore,
+  doc, getDoc, setDoc,
+  collection, onSnapshot,
+  writeBatch, serverTimestamp, deleteDoc,
+} from "firebase/firestore";
+
+const firebaseConfig = {
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+};
+
+const app = initializeApp(firebaseConfig);
+
+export const auth           = getAuth(app);
+export const db             = getFirestore(app);
+export const googleProvider = new GoogleAuthProvider();
+
+export async function getOrCreateUserProfile(firebaseUser) {
+  const ref  = doc(db, "users", firebaseUser.uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    const profile = {
+      uid:         firebaseUser.uid,
+      email:       firebaseUser.email,
+      displayName: firebaseUser.displayName ?? firebaseUser.email.split("@")[0],
+      role:        "player",
+      createdAt:   serverTimestamp(),
+    };
+    await setDoc(ref, profile);
+    return profile;
+  }
+  return snap.data();
+}
+
+export function subscribeToTokens(sessionId, callback) {
+  const colRef = collection(db, "sessions", sessionId, "tokens");
+  return onSnapshot(colRef, (snapshot) => {
+    const tokens = [];
+    snapshot.forEach((d) => tokens.push({ id: d.id, ...d.data() }));
+    callback(tokens);
+  });
+}
+
+export async function saveTokens(sessionId, tokens) {
+  const batch = writeBatch(db);
+  tokens.forEach((token) => {
+    const ref = doc(db, "sessions", sessionId, "tokens", token.id);
+    batch.set(ref, {
+      faction:   token.faction,
+      x:         token.x,
+      y:         token.y,
+      count:     token.count,
+      notes:     token.notes,
+      ownerId:   token.ownerId ?? null,
+      updatedAt: serverTimestamp(),
+    });
+  });
+  await batch.commit();
+}
+
+export async function deleteToken(sessionId, tokenId) {
+  const ref = doc(db, "sessions", sessionId, "tokens", tokenId);
+  await deleteDoc(ref);
+}
