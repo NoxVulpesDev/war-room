@@ -3,8 +3,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 const BASE = import.meta.env.BASE_URL;
 const MAPS = [
   { id: "erin",      label: "Erin",      src: `${BASE}Erin.jpg` },
-  { id: "manx",      label: "Manx",      src: `${BASE}Manx.jpg` },
-  { id: "cymria",     label: "Cymria",     src: `${BASE}Cymria.jpg` },
+  { id: "manx",      label: "Manx",      src: `${BASE}Manx.png` },
+  { id: "cymria",     label: "Cymria",     src: `${BASE}Cymria.png` },
   { id: "caledonia", label: "Caledonia", src: `${BASE}Cal.jpg` },
 ];
 
