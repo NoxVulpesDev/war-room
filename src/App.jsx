@@ -13,7 +13,7 @@ const MAPS = [
 
 const FACTIONS = {
   player:    { color: "#2d6e3e", border: "#a8d5b5", label: "Player",    icon: "⚔" },
-  enemy:     { color: "#7a1c1c", border: "#fa4c4c", label: "Enemy",     icon: "☠" },
+  enemy:     { color: "#7a7a7a", border: "#000000", label: "Enemy",     icon: "☠" },
   contested: { color: "#640264", border: "#e8a0d2", label: "Contested", icon: "⚔" },
 };
 
