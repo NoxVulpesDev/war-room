@@ -1,15 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
 const MAPS = [
-  { id: "erin",      label: "Erin",      src: "/Erin.jpg" },
-  { id: "manx",      label: "Manx",      src: "/Manx.jpg" },
-  { id: "cymru",     label: "Cymru",     src: "/Cymru.jpg" },
-  { id: "caledonia", label: "Caledonia", src: "/Caledonia.jpg" },
+  { id: "erin",      label: "Erin",      src: "./Public/Erin.jpg" },
+  { id: "manx",      label: "Manx",      src: "./Public/Manx.jpg" },
+  { id: "cymru",     label: "Cymru",     src: "./Public/Cymru.jpg" },
+  { id: "caledonia", label: "Caledonia", src: "./Public/Caledonia.jpg" },
 ];
 
 const FACTIONS = {
   player: { color: "#2d6e3e", border: "#a8d5b5", label: "Player", icon: "⚔" },
-  enemy:  { color: "#7a1c1c", border: "#e8a0a0", label: "Enemy",  icon: "☠" },
+  enemy:  { color: "#7a1c1c", border: "#fa4c4c", label: "Enemy",  icon: "☠" },
+  contested:  { color: "#640264", border: "#e8a0d2", label: "Contested",  icon: "⚔" },
 };
 
 const TOKEN_RADIUS = 11;
@@ -59,6 +60,8 @@ export default function BattleMap() {
   const zoomRef = useRef(1);
   const panRef = useRef({ x: 0, y: 0 });
   const dragPanRef = useRef(null); // {mouseX, mouseY, panX, panY} while panning
+  const touchRef = useRef(null);      // touch gesture state
+  const tokenTouchRef = useRef(null); // {id} while dragging a token by finger
 
   const selectedToken = tokens.find(t => t.id === selected);
 
@@ -133,6 +136,128 @@ export default function BattleMap() {
       document.removeEventListener("mouseup", handleMouseUp);
     };
   }, [handleMouseMove, handleMouseUp]);
+
+  // ── Touch: canvas gesture start (single finger or pinch) ──
+  const handleCanvasTouchStart = useCallback((e) => {
+    if (e.touches.length === 2) {
+      dragPanRef.current = null;
+      setIsGrabbing(false);
+      const t1 = e.touches[0], t2 = e.touches[1];
+      const rect = canvasRef.current.getBoundingClientRect();
+      touchRef.current = {
+        type: "pinch",
+        startDist: Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY),
+        startZoom: zoomRef.current,
+        startPanX: panRef.current.x,
+        startPanY: panRef.current.y,
+        originX: (t1.clientX + t2.clientX) / 2 - rect.left,
+        originY: (t1.clientY + t2.clientY) / 2 - rect.top,
+      };
+    } else if (e.touches.length === 1 && !tokenTouchRef.current) {
+      const touch = e.touches[0];
+      touchRef.current = { type: "single", startX: touch.clientX, startY: touch.clientY, moved: false };
+      if (mode === "pan") {
+        dragPanRef.current = { mouseX: touch.clientX, mouseY: touch.clientY, panX: panRef.current.x, panY: panRef.current.y };
+        setIsGrabbing(true);
+      }
+    }
+  }, [mode]);
+
+  // ── Touch: move and end handled at document level (same pattern as mouse) ──
+  useEffect(() => {
+    const onTouchMove = (e) => {
+      if (tokenTouchRef.current) {
+        // Drag a token by finger
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const x = (touch.clientX - rect.left - panRef.current.x) / zoomRef.current;
+        const y = (touch.clientY - rect.top - panRef.current.y) / zoomRef.current;
+        setTokens(prev => prev.map(t => t.id === tokenTouchRef.current.id ? { ...t, x, y } : t));
+      } else if (touchRef.current?.type === "pinch" && e.touches.length === 2) {
+        // Pinch-to-zoom + two-finger pan
+        const t1 = e.touches[0], t2 = e.touches[1];
+        const { startDist, startZoom, startPanX, startPanY, originX, originY } = touchRef.current;
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const pinchDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        const midX = (t1.clientX + t2.clientX) / 2 - rect.left;
+        const midY = (t1.clientY + t2.clientY) / 2 - rect.top;
+        const newZoom = Math.min(Math.max(startZoom * (pinchDist / startDist), 0.1), 10);
+        const zoomScale = newZoom / startZoom;
+        // Keep the pinch origin point fixed in world space while also translating with finger movement
+        const newPan = {
+          x: midX - (originX - startPanX) * zoomScale,
+          y: midY - (originY - startPanY) * zoomScale,
+        };
+        zoomRef.current = newZoom;
+        panRef.current = newPan;
+        setZoom(newZoom);
+        setPan(newPan);
+      } else if (touchRef.current?.type === "single" && e.touches.length === 1) {
+        // Single-finger pan (works in any mode; tap still places because no movement)
+        const touch = e.touches[0];
+        const dx = touch.clientX - touchRef.current.startX;
+        const dy = touch.clientY - touchRef.current.startY;
+        if (!touchRef.current.moved && Math.hypot(dx, dy) > 8) {
+          touchRef.current.moved = true;
+          dragPanRef.current = {
+            mouseX: touchRef.current.startX,
+            mouseY: touchRef.current.startY,
+            panX: panRef.current.x,
+            panY: panRef.current.y,
+          };
+          setIsGrabbing(true);
+        }
+        if (dragPanRef.current) {
+          const newPan = { x: dragPanRef.current.panX + dx, y: dragPanRef.current.panY + dy };
+          panRef.current = newPan;
+          setPan(newPan);
+        }
+      }
+    };
+
+    const onTouchEnd = (e) => {
+      if (tokenTouchRef.current) {
+        // Finalise token position and check for merge
+        const touch = e.changedTouches[0];
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (rect) {
+          const x = (touch.clientX - rect.left - panRef.current.x) / zoomRef.current;
+          const y = (touch.clientY - rect.top - panRef.current.y) / zoomRef.current;
+          const draggedId = tokenTouchRef.current.id;
+          setTokens(prev => {
+            const dragged = prev.find(t => t.id === draggedId);
+            if (!dragged) return prev;
+            const mergeTarget = prev.find(
+              t => t.id !== draggedId && t.faction === dragged.faction && dist(t, { x, y }) < MERGE_THRESHOLD
+            );
+            if (mergeTarget) {
+              return prev
+                .filter(t => t.id !== draggedId)
+                .map(t => t.id === mergeTarget.id
+                  ? { ...t, count: t.count + dragged.count, notes: [...t.notes, ...dragged.notes] }
+                  : t
+                );
+            }
+            return prev.map(t => t.id === draggedId ? { ...t, x, y } : t);
+          });
+        }
+        tokenTouchRef.current = null;
+      }
+      dragPanRef.current = null;
+      setIsGrabbing(false);
+      touchRef.current = null;
+    };
+
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    document.addEventListener("touchend", onTouchEnd);
+    return () => {
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, []); // stable: only refs and stable setState inside
 
   // ── Zoom controls (zoom toward canvas center) ──
   const adjustZoom = useCallback((factor) => {
@@ -309,8 +434,9 @@ export default function BattleMap() {
           color: #f5e8c0;
           box-shadow: 0 0 8px #c4952a44;
         }
-        .toolbar-btn.player-active { background: #1a3d26; border-color: #4a9e6a; color: #a8d5b5; }
-        .toolbar-btn.enemy-active  { background: #3d1010; border-color: #c45252; color: #e8a0a0; }
+        .toolbar-btn.player-active    { background: #1a3d26; border-color: #4a9e6a; color: #a8d5b5; }
+        .toolbar-btn.enemy-active     { background: #3d1010; border-color: #c45252; color: #e8a0a0; }
+        .toolbar-btn.contested-active { background: #2d0a2d; border-color: #a050a0; color: #e8a0d2; }
 
         .mode-btn { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
           padding: 6px 12px; border-radius: 3px; border: 1px solid #3a2209; background: #1f1005;
@@ -358,7 +484,7 @@ export default function BattleMap() {
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "nowrap", overflowX: "auto", flexShrink: 1, minWidth: 0 }}>
           {/* Map selector */}
           <select
             value={selectedMap}
@@ -409,6 +535,10 @@ export default function BattleMap() {
                 className={`toolbar-btn ${placingFaction === "enemy" ? "enemy-active" : ""}`}
                 onClick={() => setPlacingFaction("enemy")}
               >☠ Enemy</button>
+              <button
+                className={`toolbar-btn ${placingFaction === "contested" ? "contested-active" : ""}`}
+                onClick={() => setPlacingFaction("contested")}
+              >⚔ Contested</button>
             </>
           )}
 
@@ -434,11 +564,11 @@ export default function BattleMap() {
               <div key={key} style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "4px 10px", borderRadius: 3,
-                background: key === "player" ? "#1a3d2633" : "#3d101033",
-                border: `1px solid ${key === "player" ? "#2d6e3e" : "#7a1c1c"}`,
+                background: `${f.color}33`,
+                border: `1px solid ${f.color}`,
               }}>
                 <span style={{ fontSize: 14 }}>{f.icon}</span>
-                <span style={{ fontFamily: "'Cinzel', serif", fontSize: 12, color: key === "player" ? "#a8d5b5" : "#e8a0a0" }}>
+                <span style={{ fontFamily: "'Cinzel', serif", fontSize: 12, color: f.border }}>
                   {total}
                 </span>
               </div>
@@ -457,6 +587,8 @@ export default function BattleMap() {
             flex: 1,
             position: "relative",
             overflow: "hidden",
+            touchAction: "none",
+            userSelect: "none",
             background: mapImage
               ? "#0d0800"
               : "repeating-linear-gradient(0deg, #1e1005 0px, #1e1005 39px, #2c1a0611 40px), repeating-linear-gradient(90deg, #1e1005 0px, #1e1005 39px, #2c1a0611 40px)",
@@ -464,6 +596,7 @@ export default function BattleMap() {
           }}
           onClick={handleCanvasClick}
           onMouseDown={handleMouseDown}
+          onTouchStart={handleCanvasTouchStart}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
           onDrop={handleCanvasDrop}
           onContextMenu={(e) => e.preventDefault()}
@@ -517,6 +650,7 @@ export default function BattleMap() {
                 draggable={mode === "move"}
                 onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, token.id); }}
                 onClick={(e) => { e.stopPropagation(); handleTokenClick(token.id); }}
+                onTouchStart={(e) => { if (mode === "move") { e.stopPropagation(); tokenTouchRef.current = { id: token.id }; } }}
                 title={token.notes?.join(" | ") || `${FACTIONS[token.faction].label} troops`}
                 style={{
                   position: "absolute",
@@ -525,10 +659,8 @@ export default function BattleMap() {
                   width: TOKEN_RADIUS * 2,
                   height: TOKEN_RADIUS * 2,
                   borderRadius: "50%",
-                  background: token.faction === "player"
-                    ? `radial-gradient(circle at 35% 35%, #a8d5b533, #2d6e3e)`
-                    : `radial-gradient(circle at 35% 35%, #e8a0a033, #7a1c1c)`,
-                  border: `2.5px solid ${selected === token.id ? "#f0d060" : token.faction === "player" ? "#4a9e6a" : "#c45252"}`,
+                  background: `radial-gradient(circle at 35% 35%, ${FACTIONS[token.faction].border}33, ${FACTIONS[token.faction].color})`,
+                  border: `2.5px solid ${selected === token.id ? "#f0d060" : FACTIONS[token.faction].border}`,
                   boxShadow: selected === token.id
                     ? `0 0 0 3px #f0d06066, 0 2px 12px #0008`
                     : `0 2px 8px #0006`,
