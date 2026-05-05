@@ -92,6 +92,11 @@ export default function BattleMap() {
 
   const selectedToken = tokens.find(t => t.id === selected);
 
+  // Preload all map images on mount so switching between maps is instant.
+  useEffect(() => {
+    MAPS.forEach(({ src }) => { const img = new Image(); img.src = src; });
+  }, []);
+
   // ─────────────────────────────────────────────────────────────────────────────
   // AUTH BOOTSTRAP
   // ─────────────────────────────────────────────────────────────────────────────
