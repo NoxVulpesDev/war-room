@@ -7,6 +7,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth, getOrCreateUserProfile } from "./firebase";
 
@@ -67,6 +68,7 @@ function KnotDivider() {
 // ── Main AuthModal component ─────────────────────────────────────────────────
 export default function AuthModal({ onAuth }) {
   const [tab, setTab] = useState("login");   // "login" | "signup"
+  const [view, setView] = useState("auth");  // "auth" | "reset" | "resetSent"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -94,6 +96,20 @@ export default function AuthModal({ onAuth }) {
         await updateProfile(cred.user, { displayName: displayName.trim() });
         await finish(cred.user, displayName.trim(), nation);
       }
+    } catch (err) {
+      setError(friendlyError(err.code));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    setError("");
+    if (!email) { setError("Enter your email address first."); return; }
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setView("resetSent");
     } catch (err) {
       setError(friendlyError(err.code));
     } finally {
@@ -139,107 +155,178 @@ export default function AuthModal({ onAuth }) {
 
           <KnotDivider />
 
-          {/* Tab switcher */}
-          <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
-            {["login", "signup"].map(t => (
-              <button key={t}
-                onClick={() => { setTab(t); setError(""); setNation(""); }}
-                style={{
-                  flex: 1, padding: "6px 0", borderRadius: 3, cursor: "pointer",
-                  fontFamily: "'Cinzel', serif", fontSize: 11, fontWeight: 600,
-                  letterSpacing: "0.08em", textTransform: "uppercase",
-                  border: tab === t ? "1px solid #8b6914" : "1px solid #3a2209",
-                  background: tab === t ? "#3a2209" : "#150b02",
-                  color: tab === t ? "#f0d060" : "#5c4a28",
-                  transition: "all 0.15s",
-                }}
+          {/* Password reset — sent confirmation */}
+          {view === "resetSent" && (
+            <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 22, margin: "0 0 10px" }}>✉</p>
+              <p style={{ color: "#e8d5a3", fontSize: 14, lineHeight: 1.6, margin: "0 0 16px" }}>
+                A password reset scroll has been dispatched to <em style={{ color: "#f0d060" }}>{email}</em>.<br />
+                Check your inbox and follow the link within.
+              </p>
+              <button
+                style={{ ...btnPrimary, width: "auto", padding: "7px 20px" }}
+                onClick={() => { setView("auth"); setError(""); }}
+                onMouseOver={e => { e.target.style.background = "linear-gradient(180deg, #5c3d11 0%, #3a2209 100%)"; }}
+                onMouseOut={e => { e.target.style.background = "linear-gradient(180deg, #3a2209 0%, #2c1a06 100%)"; }}
               >
-                {t === "login" ? "⚔ Enter" : "✦ Join"}
+                ← Back to Login
               </button>
-            ))}
-          </div>
+            </div>
+          )}
 
-          {/* Fields */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {tab === "signup" && (
-              <>
+          {/* Password reset — email entry */}
+          {view === "reset" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: "#8b7040", lineHeight: 1.5 }}>
+                Enter your email and we'll send a link to reclaim your access.
+              </p>
+              <div>
+                <label style={{ fontSize: 11, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
+                  Email
+                </label>
+                <input
+                  style={inputStyle}
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  onFocus={e => e.target.style.borderColor = "#8b6914"}
+                  onBlur={e => e.target.style.borderColor = "#5c3d11"}
+                  onKeyDown={e => e.key === "Enter" && handlePasswordReset()}
+                  autoFocus
+                />
+              </div>
+              {error && <div style={errStyle}>{error}</div>}
+              <button
+                style={{ ...btnPrimary, marginTop: 4, opacity: loading ? 0.6 : 1 }}
+                onClick={handlePasswordReset}
+                disabled={loading}
+                onMouseOver={e => { if (!loading) { e.target.style.background = "linear-gradient(180deg, #5c3d11 0%, #3a2209 100%)"; e.target.style.boxShadow = "0 0 12px #c4952a22"; }}}
+                onMouseOut={e => { e.target.style.background = "linear-gradient(180deg, #3a2209 0%, #2c1a06 100%)"; e.target.style.boxShadow = "none"; }}
+              >
+                {loading ? "…" : "✉ Send Reset Link"}
+              </button>
+              <button
+                style={{ background: "none", border: "none", color: "#5c4a28", fontSize: 12, cursor: "pointer", textDecoration: "underline", fontFamily: "'Crimson Text', serif", padding: 0, marginTop: 2 }}
+                onClick={() => { setView("auth"); setError(""); }}
+              >
+                ← Back to login
+              </button>
+            </div>
+          )}
+
+          {/* Tab switcher + login/signup fields */}
+          {view === "auth" && (
+            <>
+              <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+                {["login", "signup"].map(t => (
+                  <button key={t}
+                    onClick={() => { setTab(t); setError(""); setNation(""); }}
+                    style={{
+                      flex: 1, padding: "6px 0", borderRadius: 3, cursor: "pointer",
+                      fontFamily: "'Cinzel', serif", fontSize: 11, fontWeight: 600,
+                      letterSpacing: "0.08em", textTransform: "uppercase",
+                      border: tab === t ? "1px solid #8b6914" : "1px solid #3a2209",
+                      background: tab === t ? "#3a2209" : "#150b02",
+                      color: tab === t ? "#f0d060" : "#5c4a28",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {t === "login" ? "⚔ Enter" : "✦ Join"}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {tab === "signup" && (
+                  <>
+                    <div>
+                      <label style={{ fontSize: 11, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
+                        Commander's Name
+                      </label>
+                      <input
+                        style={inputStyle}
+                        value={displayName}
+                        onChange={e => setDisplayName(e.target.value)}
+                        placeholder="Your name in the chronicles"
+                        onFocus={e => e.target.style.borderColor = "#8b6914"}
+                        onBlur={e => e.target.style.borderColor = "#5c3d11"}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
+                        Nation
+                      </label>
+                      <select
+                        style={{ ...inputStyle, cursor: "pointer", appearance: "none" }}
+                        value={nation}
+                        onChange={e => setNation(e.target.value)}
+                        onFocus={e => e.target.style.borderColor = "#8b6914"}
+                        onBlur={e => e.target.style.borderColor = "#5c3d11"}
+                      >
+                        <option value="">— Choose your nation —</option>
+                        <option value="erin">🟢 Erin</option>
+                        <option value="manx">🔴 Manx</option>
+                        <option value="caledonia">🔵 Caledonia</option>
+                        <option value="cymria">🟡 Cymria</option>
+                      </select>
+                    </div>
+                  </>
+                )}
                 <div>
                   <label style={{ fontSize: 11, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
-                    Commander's Name
+                    Email
                   </label>
                   <input
                     style={inputStyle}
-                    value={displayName}
-                    onChange={e => setDisplayName(e.target.value)}
-                    placeholder="Your name in the chronicles"
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="your@email.com"
                     onFocus={e => e.target.style.borderColor = "#8b6914"}
                     onBlur={e => e.target.style.borderColor = "#5c3d11"}
+                    onKeyDown={e => e.key === "Enter" && handleEmailAuth()}
                   />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
-                    Nation
+                    Password
                   </label>
-                  <select
-                    style={{ ...inputStyle, cursor: "pointer", appearance: "none" }}
-                    value={nation}
-                    onChange={e => setNation(e.target.value)}
+                  <input
+                    style={inputStyle}
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder={tab === "signup" ? "At least 6 characters" : "••••••••"}
                     onFocus={e => e.target.style.borderColor = "#8b6914"}
                     onBlur={e => e.target.style.borderColor = "#5c3d11"}
-                  >
-                    <option value="">— Choose your nation —</option>
-                    <option value="erin">🟢 Erin</option>
-                    <option value="manx">🔴 Manx</option>
-                    <option value="caledonia">🔵 Caledonia</option>
-                    <option value="cymria">🟡 Cymria</option>
-                  </select>
+                    onKeyDown={e => e.key === "Enter" && handleEmailAuth()}
+                  />
                 </div>
-              </>
-            )}
-            <div>
-              <label style={{ fontSize: 11, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
-                Email
-              </label>
-              <input
-                style={inputStyle}
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                onFocus={e => e.target.style.borderColor = "#8b6914"}
-                onBlur={e => e.target.style.borderColor = "#5c3d11"}
-                onKeyDown={e => e.key === "Enter" && handleEmailAuth()}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
-                Password
-              </label>
-              <input
-                style={inputStyle}
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder={tab === "signup" ? "At least 6 characters" : "••••••••"}
-                onFocus={e => e.target.style.borderColor = "#8b6914"}
-                onBlur={e => e.target.style.borderColor = "#5c3d11"}
-                onKeyDown={e => e.key === "Enter" && handleEmailAuth()}
-              />
-            </div>
 
-            {error && <div style={errStyle}>{error}</div>}
+                {tab === "login" && (
+                  <button
+                    style={{ background: "none", border: "none", color: "#5c4a28", fontSize: 12, cursor: "pointer", textDecoration: "underline", fontFamily: "'Crimson Text', serif", padding: 0, textAlign: "right" }}
+                    onClick={() => { setView("reset"); setError(""); }}
+                  >
+                    Forgot your password?
+                  </button>
+                )}
 
-            <button
-              style={{ ...btnPrimary, marginTop: 4, opacity: loading ? 0.6 : 1 }}
-              onClick={handleEmailAuth}
-              disabled={loading}
-              onMouseOver={e => { if (!loading) { e.target.style.background = "linear-gradient(180deg, #5c3d11 0%, #3a2209 100%)"; e.target.style.boxShadow = "0 0 12px #c4952a22"; }}}
-              onMouseOut={e => { e.target.style.background = "linear-gradient(180deg, #3a2209 0%, #2c1a06 100%)"; e.target.style.boxShadow = "none"; }}
-            >
-              {loading ? "…" : tab === "login" ? "⚔ Enter the Council" : "✦ Join the Council"}
-            </button>
+                {error && <div style={errStyle}>{error}</div>}
 
-          </div>
+                <button
+                  style={{ ...btnPrimary, marginTop: 4, opacity: loading ? 0.6 : 1 }}
+                  onClick={handleEmailAuth}
+                  disabled={loading}
+                  onMouseOver={e => { if (!loading) { e.target.style.background = "linear-gradient(180deg, #5c3d11 0%, #3a2209 100%)"; e.target.style.boxShadow = "0 0 12px #c4952a22"; }}}
+                  onMouseOut={e => { e.target.style.background = "linear-gradient(180deg, #3a2209 0%, #2c1a06 100%)"; e.target.style.boxShadow = "none"; }}
+                >
+                  {loading ? "…" : tab === "login" ? "⚔ Enter the Council" : "✦ Join the Council"}
+                </button>
+              </div>
+            </>
+          )}
 
           {/* Role note */}
           <p style={{
@@ -272,6 +359,7 @@ function friendlyError(code) {
     "auth/weak-password":            "Password must be at least 6 characters.",
     "auth/too-many-requests":        "Too many attempts. Please wait and try again.",
     "auth/network-request-failed":   "Network error — check your connection.",
+    "auth/invalid-action-code":      "This reset link has expired or already been used.",
   };
   return map[code] ?? `Authentication error (${code})`;
 }
