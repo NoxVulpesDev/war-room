@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, getOrCreateUserProfile, subscribeToTokens, saveTokens, deleteToken } from "./firebase";
 import AuthModal from "./AuthModal";
+import AdminPanel from "./AdminPanel";
 
 const BASE = import.meta.env.BASE_URL;
 const MAPS = [
@@ -80,18 +81,24 @@ export default function BattleMap() {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [userProfile,  setUserProfile]  = useState(null);  // { uid, displayName, role, … }
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [adminMode,     setAdminMode]     = useState(false);
 
   // Derived convenience
-  const isAdmin  = userProfile?.role === "admin";
-  const isPlayer = !!firebaseUser;   // any authenticated user
+  const isAdmin     = userProfile?.role === "admin";
+  const isMonarch   = userProfile?.role === "monarch";
+  // treat legacy "player" role as commander
+  const isCommander = userProfile?.role === "commander" || userProfile?.role === "player";
+  const isPlayer    = !!firebaseUser;
+  // Admins only get elevated permissions when they have explicitly enabled admin mode
+  const isAdminMode = isAdmin && adminMode;
 
   // ── Map / session state ─────────────────────────────────────────────────────
   const [mapImage,     setMapImage]     = useState(null);
   const [selectedMap,  setSelectedMap]  = useState("");
   // sessionId is derived from the selected map — one Firestore collection per map
   const sessionId = selectedMap || "default";
-  // True when a non-admin with a known nation views another nation's map
-  const onForeignMap = !isAdmin && !!selectedMap && !!userProfile?.nation && selectedMap !== userProfile.nation;
+  // True when a non-admin-mode user with a known nation views another nation's map
+  const onForeignMap = !isAdminMode && !!selectedMap && !!userProfile?.nation && selectedMap !== userProfile.nation;
 
   // ── Token state (source of truth = local; synced to/from Firestore) ──────────
   const [tokens,       setTokens]       = useState([]);
@@ -100,7 +107,9 @@ export default function BattleMap() {
   const [mode,         setMode]         = useState("place");
   const [noteInput,    setNoteInput]    = useState("");
   const [dragId,       setDragId]       = useState(null);
-  const [showPanel,    setShowPanel]    = useState(false);
+  const [showPanel,         setShowPanel]         = useState(false);
+  const [showAdminPanel,    setShowAdminPanel]    = useState(false);
+  const [tokenLimitWarning, setTokenLimitWarning] = useState(false);
   const [splitCount,   setSplitCount]   = useState(1);
 
   // ── Save status indicator ───────────────────────────────────────────────────
@@ -205,10 +214,10 @@ export default function BattleMap() {
   const setTokensAndSave = useCallback((updater) => {
     setTokens(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      scheduleSave(next, userProfile?.uid ?? null, isAdmin);
+      scheduleSave(next, userProfile?.uid ?? null, isAdminMode);
       return next;
     });
-  }, [scheduleSave, userProfile?.uid, isAdmin]);
+  }, [scheduleSave, userProfile?.uid, isAdminMode]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // PERMISSION HELPERS
@@ -216,17 +225,15 @@ export default function BattleMap() {
   // Can the current user mutate a given token?
   const canMutateToken = useCallback((token) => {
     if (!userProfile) return false;
-    if (isAdmin) return true;
-    // Players may only touch their own tokens (not enemy tokens)
+    if (isAdminMode) return true;
     return token.faction !== "enemy" && token.ownerId === userProfile.uid;
-  }, [userProfile, isAdmin]);
+  }, [userProfile, isAdminMode]);
 
-  // Can the current user place a given faction?
   const canPlaceFaction = useCallback((faction) => {
     if (!userProfile) return false;
-    if (isAdmin) return true;
-    return faction !== "enemy"; // Players can't place enemy tokens
-  }, [userProfile, isAdmin]);
+    if (isAdminMode) return true;
+    return faction !== "enemy";
+  }, [userProfile, isAdminMode]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // MAP SELECTION
@@ -447,7 +454,15 @@ export default function BattleMap() {
     if (mode !== "place") return;
     if (dragPanRef.current) return;
     if (!canPlaceFaction(placingFaction)) return;
-    if (!isAdmin && selectedMap && userProfile?.nation && selectedMap !== userProfile.nation) return;
+    if (!isAdminMode && selectedMap && userProfile?.nation && selectedMap !== userProfile.nation) return;
+    if (!isAdminMode && userProfile?.maxTokens != null) {
+      const ownedCount = tokens.filter(t => t.ownerId === userProfile.uid).reduce((s, t) => s + t.count, 0);
+      if (ownedCount >= userProfile.maxTokens) {
+        setTokenLimitWarning(true);
+        setTimeout(() => setTokenLimitWarning(false), 2500);
+        return;
+      }
+    }
     const mb = getMapScreenBounds(mapImgRef.current);
     if (!mb) return;
 
@@ -474,7 +489,7 @@ export default function BattleMap() {
         nation:  userProfile?.nation ?? null,
       }]);
     }
-  }, [mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdmin, selectedMap]);
+  }, [mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdminMode, selectedMap]);
 
   const handleDragStart = (e, id) => {
     if (mode !== "move") return;
@@ -705,8 +720,8 @@ export default function BattleMap() {
                 className={`toolbar-btn ${placingFaction === "player" ? "player-active" : ""}`}
                 onClick={() => setPlacingFaction("player")}
               >⚔ Player</button>
-              {/* Enemy faction only visible to admins */}
-              {isAdmin && (
+              {/* Enemy faction only visible in admin mode */}
+              {isAdminMode && (
                 <button
                   className={`toolbar-btn ${placingFaction === "enemy" ? "enemy-active" : ""}`}
                   onClick={() => setPlacingFaction("enemy")}
@@ -744,6 +759,23 @@ export default function BattleMap() {
               </div>
             );
           })}
+          {/* Per-user unit cap indicator */}
+          {!isAdminMode && userProfile?.maxTokens != null && selectedMap && (() => {
+            const ownedCount = tokens.filter(t => t.ownerId === userProfile.uid).reduce((s, t) => s + t.count, 0);
+            const atLimit = ownedCount >= userProfile.maxTokens;
+            return (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 5,
+                padding: "4px 10px", borderRadius: 3,
+                background: atLimit ? "#2d0a0a" : "#1a1005",
+                border: `1px solid ${atLimit ? "#8b1a1a" : "#3a2209"}`,
+              }}>
+                <span style={{ fontFamily: "'Cinzel', serif", fontSize: 11, color: atLimit ? "#e05050" : "#8b7040", letterSpacing: "0.04em" }}>
+                  {ownedCount}/{userProfile.maxTokens} units
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* ── User / session area (right-side) ─────────────────────────────── */}
@@ -768,11 +800,11 @@ export default function BattleMap() {
             <div style={{
               display: "flex", alignItems: "center", gap: 6,
               padding: "4px 10px", borderRadius: 3,
-              background: isAdmin ? "#3a2209" : "#1a2d3d",
-              border: `1px solid ${isAdmin ? "#8b6914" : "#1a4a8b"}`,
+              background: isAdmin ? "#3a2209" : isMonarch ? "#2a1a05" : "#1a2d3d",
+              border: `1px solid ${isAdmin ? "#8b6914" : isMonarch ? "#6b5010" : "#1a4a8b"}`,
             }}>
-              <span style={{ fontSize: 13 }}>{isAdmin ? "👑" : "⚔"}</span>
-              <span style={{ fontFamily: "'Cinzel', serif", fontSize: 11, color: isAdmin ? "#f0d060" : "#70a0e0", letterSpacing: "0.06em" }}>
+              <span style={{ fontSize: 13 }}>{isAdmin ? "👑" : isMonarch ? "♔" : "⚔"}</span>
+              <span style={{ fontFamily: "'Cinzel', serif", fontSize: 11, color: isAdmin ? "#f0d060" : isMonarch ? "#c4952a" : "#70a0e0", letterSpacing: "0.06em" }}>
                 {userProfile.displayName}
               </span>
               {userProfile.nation && NATIONS[userProfile.nation] && (
@@ -787,10 +819,47 @@ export default function BattleMap() {
                   </span>
                 </span>
               )}
-              <span style={{ fontSize: 10, color: isAdmin ? "#8b6914" : "#2a5a8b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                {isAdmin ? "GM" : "Player"}
+              <span style={{ fontSize: 10, color: isAdmin ? "#8b6914" : isMonarch ? "#c4952a" : "#2a5a8b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                {isAdmin ? "GM" : isMonarch ? "Monarch" : "Commander"}
               </span>
             </div>
+          )}
+
+          {/* Admin mode toggle */}
+          {isAdmin && (
+            <button
+              onClick={() => setAdminMode(m => !m)}
+              style={{
+                fontFamily: "'Cinzel', serif", fontSize: 10, fontWeight: 600,
+                letterSpacing: "0.06em", textTransform: "uppercase",
+                padding: "5px 10px", borderRadius: 3,
+                border: `1px solid ${adminMode ? "#c4952a" : "#3a2209"}`,
+                background: adminMode ? "#5c3d11" : "#1f1005",
+                color: adminMode ? "#f0d060" : "#5c4a28",
+                cursor: "pointer", transition: "all 0.15s",
+                boxShadow: adminMode ? "0 0 8px #c4952a44" : "none",
+              }}
+            >
+              {adminMode ? "👑 Admin: On" : "👑 Admin: Off"}
+            </button>
+          )}
+
+          {/* Admin panel button */}
+          {isAdmin && (
+            <button
+              onClick={() => setShowAdminPanel(true)}
+              style={{
+                fontFamily: "'Cinzel', serif", fontSize: 10, fontWeight: 600,
+                letterSpacing: "0.06em", textTransform: "uppercase",
+                padding: "5px 10px", borderRadius: 3,
+                border: "1px solid #8b6914", background: "#3a2209",
+                color: "#f0d060", cursor: "pointer", transition: "all 0.15s",
+              }}
+              onMouseOver={e => { e.currentTarget.style.background = "#5c3d11"; }}
+              onMouseOut={e => { e.currentTarget.style.background = "#3a2209"; }}
+            >
+              ⚙ Admin
+            </button>
           )}
 
           {/* Sign out */}
@@ -944,6 +1013,19 @@ export default function BattleMap() {
             )}
           </div>
 
+          {/* Token limit warning */}
+          {tokenLimitWarning && (
+            <div style={{
+              position: "absolute", bottom: 52, left: "50%", transform: "translateX(-50%)",
+              background: "#2d0a0add", border: "1px solid #8b1a1a", borderRadius: 4,
+              padding: "7px 18px", pointerEvents: "none", zIndex: 40,
+              fontFamily: "'Cinzel', serif", fontSize: 11, letterSpacing: "0.09em",
+              textTransform: "uppercase", color: "#e05050", whiteSpace: "nowrap",
+            }}>
+              Unit limit reached — no more can be placed on this map
+            </div>
+          )}
+
           {/* Foreign territory banner */}
           {onForeignMap && (
             <div style={{
@@ -1095,6 +1177,8 @@ export default function BattleMap() {
           })()}
         </div>
       </div>
+
+      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} />}
 
       {/* Footer */}
       <footer style={{

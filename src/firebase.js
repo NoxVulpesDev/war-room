@@ -5,6 +5,7 @@ import {
   doc, getDoc, setDoc,
   collection, onSnapshot,
   writeBatch, serverTimestamp, deleteDoc,
+  getDocs,
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -30,7 +31,7 @@ export async function getOrCreateUserProfile(firebaseUser, characterName, nation
       uid:         firebaseUser.uid,
       email:       firebaseUser.email,
       displayName: characterName ?? firebaseUser.displayName ?? firebaseUser.email.split("@")[0],
-      role:        "player",
+      role:        "commander",
       nation:      nation ?? null,
       createdAt:   serverTimestamp(),
     };
@@ -92,4 +93,22 @@ export async function saveTokens(sessionId, tokens, currentUserId = null, isAdmi
 export async function deleteToken(sessionId, tokenId) {
   const ref = doc(db, "sessions", sessionId, "tokens", tokenId);
   await deleteDoc(ref);
+}
+
+export async function getAllUsers() {
+  const snap = await getDocs(collection(db, "users"));
+  return snap.docs.map(d => ({ ...d.data(), uid: d.id }));
+}
+
+export async function updateUserProfile(uid, updates) {
+  await setDoc(doc(db, "users", uid), updates, { merge: true });
+}
+
+export async function getGlobalSettings() {
+  const snap = await getDoc(doc(db, "config", "global"));
+  return snap.exists() ? snap.data() : { defaultMaxTokens: null };
+}
+
+export async function updateGlobalSettings(updates) {
+  await setDoc(doc(db, "config", "global"), updates, { merge: true });
 }
