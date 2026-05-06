@@ -71,23 +71,30 @@ export default function TokenPanel({
             </div>
           </div>
 
-          {selectedToken.count > 1 && !locked && (
-            <div style={{ marginBottom: 16 }}>
-              <p style={{ fontSize: 12, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 8px" }}>
-                Split Forces
-              </p>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <button onClick={() => setSplitCount(c => Math.max(1, c - 1))}
-                  style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>−</button>
-                <span style={{ fontSize: 15, fontFamily: "'Cinzel', serif", fontWeight: 700, color: "#f5e8c0", minWidth: 24, textAlign: "center" }}>{splitCount}</span>
-                <button onClick={() => setSplitCount(c => Math.min(selectedToken.count - 1, c + 1))}
-                  style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>+</button>
-                <button onClick={handleSplit}
-                  style={{ flex: 1, background: "#1a2d1a", border: "1px solid #2d6e3e", color: "#a8d5b5", borderRadius: 3, padding: "5px 8px", cursor: "pointer", fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: "0.05em", textTransform: "uppercase" }}>⑃ Split off</button>
+          {selectedToken.count > 1 && !locked && (() => {
+            const splitMax = selectedToken.members?.length > 1
+              ? selectedToken.members.length - 1
+              : selectedToken.count - 1;
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontSize: 12, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 8px" }}>
+                  Split Forces
+                </p>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <button onClick={() => setSplitCount(c => Math.max(1, c - 1))}
+                    style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>−</button>
+                  <span style={{ fontSize: 15, fontFamily: "'Cinzel', serif", fontWeight: 700, color: "#f5e8c0", minWidth: 24, textAlign: "center" }}>{splitCount}</span>
+                  <button onClick={() => setSplitCount(c => Math.min(splitMax, c + 1))}
+                    style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>+</button>
+                  <button onClick={handleSplit}
+                    style={{ flex: 1, background: "#1a2d1a", border: "1px solid #2d6e3e", color: "#a8d5b5", borderRadius: 3, padding: "5px 8px", cursor: "pointer", fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: "0.05em", textTransform: "uppercase" }}>⑃ Split off</button>
+                </div>
+                <p style={{ margin: "5px 0 0", fontSize: 11, color: "#5c4a28" }}>
+                  Splits off {splitCount} member token{splitCount !== 1 ? "s" : ""}, restoring their notes and owners
+                </p>
               </div>
-              <p style={{ margin: "5px 0 0", fontSize: 11, color: "#5c4a28" }}>Detaches {splitCount} unit{splitCount !== 1 ? "s" : ""} into a new token nearby</p>
-            </div>
-          )}
+            );
+          })()}
 
           <p style={{ fontSize: 12, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 8px" }}>
             Field Notes

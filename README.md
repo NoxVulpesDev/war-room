@@ -221,13 +221,22 @@ App.jsx (BattleMap)
   faction:   "player" | "enemy" | "contested",
   x:         number,   // Normalized 0–1 relative to map image width
   y:         number,   // Normalized 0–1 relative to map image height
-  count:     number,   // Number of units this token represents
-  notes:     string[], // Free-text field notes
-  ownerId:   string | null,   // Firebase UID; null for admin-placed enemy tokens
+  count:     number,   // Sum of member counts (or legacy unit count)
+  notes:     string[], // Group-level field notes (added after grouping)
+  ownerId:   string | null,   // Firebase UID of the anchor member; null for admin-placed enemy tokens
   nation:    "erin" | "manx" | "cymria" | "caledonia" | null,
+  members:   Array<{           // Individual token identities within a group
+    id:      string,
+    count:   number,
+    notes:   string[],         // Notes that existed before this member was grouped
+    ownerId: string | null,
+    nation:  string | null,
+  }>,
   updatedAt: Timestamp,
 }
 ```
+
+`members` is populated whenever two or more tokens are grouped together. Legacy tokens in Firestore that predate this field are treated as having a single implicit member (using the top-level `count`, `notes`, `ownerId`, and `nation`).
 
 ### `config/global`
 
@@ -412,6 +421,7 @@ Admin features additionally require `adminMode` to be toggled on in the toolbar.
 | Place tokens on foreign maps | No | No | No | Yes |
 | Move own tokens | Yes | Yes | Yes | Yes |
 | Move others' tokens | No | No | No | Yes |
+| Edit / split a group containing own tokens | Yes | Yes | Yes | Yes |
 | Delete own tokens | Yes | Yes | Yes | Yes |
 | Delete others' tokens | No | No | No | Yes |
 | See enemy faction tokens | No | No | Yes | Yes |
@@ -464,13 +474,15 @@ Any logged-in user can add a note to any token they can view. Notes are automati
 
 Removing a note is restricted: the remove button is only shown if the viewer owns the token or has the `admin` or `monarch` role.
 
-### Auto-merge
+### Auto-grouping
 
-When a token is placed or dropped, `findMergeTarget()` (in `utils.js`) scans existing tokens for any of the same faction within `MERGE_THRESHOLD` pixels (screen space). If found, counts are summed into the existing token and the new/dragged token is discarded. The same logic runs in three places — canvas click, canvas drop, and touch end — all using the shared utility.
+When a token is placed or dropped, `findMergeTarget()` (in `utils.js`) scans existing tokens for any of the same faction within `MERGE_THRESHOLD` pixels (screen space). If found, the incoming token (or its `members` array) is appended to the target token's `members` array, preserving each constituent's notes, `ownerId`, and `nation`. The same logic runs in three places — canvas click, canvas drop, and touch end — all using the shared utility.
+
+Legacy tokens without a `members` field are normalised to a single-member array on the fly when grouped.
 
 ### Splitting
 
-From the detail panel, a user can split N units off a token. The original loses N units and a new token with N units is placed at a small offset. The new token inherits faction, nation, and ownerId.
+From the detail panel, a user can split N members off a grouped token. Each split-off member becomes an independent token, restoring its original notes, `ownerId`, and `nation`. The selected count is bounded to `members.length − 1` so the group always retains at least one member. For legacy tokens without a `members` array the old count-based split path is used as a fallback.
 
 ### Token limits
 

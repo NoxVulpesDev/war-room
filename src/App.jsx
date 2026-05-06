@@ -85,7 +85,9 @@ export default function BattleMap() {
   const canMutateToken = useCallback((token) => {
     if (!userProfile) return false;
     if (isAdminMode) return true;
-    return token.faction !== "enemy" && token.ownerId === userProfile.uid;
+    if (token.faction === "enemy") return false;
+    if (token.ownerId === userProfile.uid) return true;
+    return token.members?.some(m => m.ownerId === userProfile.uid) ?? false;
   }, [userProfile, isAdminMode]);
 
   const canPlaceFaction = useCallback((faction) => {
@@ -132,8 +134,19 @@ export default function BattleMap() {
     const nearby = findMergeTarget(tokens, mb, e.clientX, e.clientY, placingFaction, screenThreshold);
 
     if (nearby) {
-      setTokensAndSave(prev => prev.map(t => t.id === nearby.id ? { ...t, count: t.count + 1 } : t));
+      setTokensAndSave(prev => prev.map(t => {
+        if (t.id !== nearby.id) return t;
+        const existingMembers = t.members?.length
+          ? t.members
+          : [{ id: t.id + "_m0", count: t.count, notes: t.notes ?? [], ownerId: t.ownerId, nation: t.nation }];
+        return {
+          ...t,
+          count: t.count + 1,
+          members: [...existingMembers, { id: generateId(), count: 1, notes: [], ownerId: userProfile?.uid ?? null, nation: userProfile?.nation ?? null }],
+        };
+      }));
     } else {
+      const memberId = generateId();
       setTokensAndSave(prev => [...prev, {
         id: generateId(),
         faction: placingFaction,
@@ -142,6 +155,7 @@ export default function BattleMap() {
         notes: [],
         ownerId: userProfile?.uid ?? null,
         nation:  userProfile?.nation ?? null,
+        members: [{ id: memberId, count: 1, notes: [], ownerId: userProfile?.uid ?? null, nation: userProfile?.nation ?? null }],
       }]);
     }
   }, [mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdminMode, selectedMap, setTokenLimitWarning]);
@@ -175,12 +189,18 @@ export default function BattleMap() {
     const mergeTarget = findMergeTarget(tokens, mb, e.clientX, e.clientY, dragged.faction, screenThreshold, dragId);
 
     if (mergeTarget) {
+      const draggedMembers = dragged.members?.length
+        ? dragged.members
+        : [{ id: dragged.id + "_m0", count: dragged.count, notes: dragged.notes ?? [], ownerId: dragged.ownerId, nation: dragged.nation }];
       setTokensAndSave(prev => prev
         .filter(t => t.id !== dragId)
-        .map(t => t.id === mergeTarget.id
-          ? { ...t, count: t.count + dragged.count, notes: [...t.notes, ...dragged.notes] }
-          : t
-        )
+        .map(t => {
+          if (t.id !== mergeTarget.id) return t;
+          const targetMembers = t.members?.length
+            ? t.members
+            : [{ id: t.id + "_m0", count: t.count, notes: t.notes ?? [], ownerId: t.ownerId, nation: t.nation }];
+          return { ...t, count: t.count + dragged.count, members: [...targetMembers, ...draggedMembers] };
+        })
       );
       setSelected(mergeTarget.id);
     } else {
@@ -225,22 +245,54 @@ export default function BattleMap() {
 
   const handleSplit = () => {
     if (!selectedToken || selectedToken.count < 2) return;
-    const n    = Math.min(Math.max(1, splitCount), selectedToken.count - 1);
-    const mb   = getMapScreenBounds(mapImgRef.current);
-    const offset = (TOKEN_RADIUS * 3) / (mb?.width ?? 800);
-    setTokensAndSave(prev => [
-      ...prev.map(t => t.id === selected ? { ...t, count: t.count - n } : t),
-      {
-        id: generateId(),
-        faction: selectedToken.faction,
-        x: selectedToken.x + offset,
-        y: selectedToken.y + offset,
-        count: n,
-        notes: [],
-        ownerId: userProfile?.uid ?? null,
-        nation:  selectedToken.nation ?? null,
-      },
-    ]);
+    const mb = getMapScreenBounds(mapImgRef.current);
+    const allMembers = selectedToken.members?.length
+      ? selectedToken.members
+      : [{ id: selectedToken.id + "_m0", count: selectedToken.count, notes: selectedToken.notes ?? [], ownerId: selectedToken.ownerId, nation: selectedToken.nation }];
+
+    if (allMembers.length > 1) {
+      const n = Math.min(Math.max(1, splitCount), allMembers.length - 1);
+      const toSplit = allMembers.slice(allMembers.length - n);
+      const remaining = allMembers.slice(0, allMembers.length - n);
+      const remainingCount = remaining.reduce((s, m) => s + m.count, 0);
+      const newTokens = toSplit.map((member, i) => {
+        const offset = (TOKEN_RADIUS * 3 * (i + 1)) / (mb?.width ?? 800);
+        return {
+          id: generateId(),
+          faction: selectedToken.faction,
+          x: selectedToken.x + offset,
+          y: selectedToken.y + offset,
+          count: member.count,
+          notes: member.notes ?? [],
+          ownerId: member.ownerId,
+          nation: member.nation,
+          members: [{ ...member }],
+        };
+      });
+      setTokensAndSave(prev => [
+        ...prev.map(t => t.id === selected ? { ...t, count: remainingCount, members: remaining } : t),
+        ...newTokens,
+      ]);
+    } else {
+      // Legacy path for tokens without members
+      const n = Math.min(Math.max(1, splitCount), selectedToken.count - 1);
+      const offset = (TOKEN_RADIUS * 3) / (mb?.width ?? 800);
+      const newMemberId = generateId();
+      setTokensAndSave(prev => [
+        ...prev.map(t => t.id === selected ? { ...t, count: t.count - n } : t),
+        {
+          id: generateId(),
+          faction: selectedToken.faction,
+          x: selectedToken.x + offset,
+          y: selectedToken.y + offset,
+          count: n,
+          notes: [],
+          ownerId: selectedToken.ownerId,
+          nation: selectedToken.nation ?? null,
+          members: [{ id: newMemberId, count: n, notes: [], ownerId: selectedToken.ownerId, nation: selectedToken.nation ?? null }],
+        },
+      ]);
+    }
     setSplitCount(1);
   };
 
