@@ -922,6 +922,8 @@ export default function BattleMap() {
                           zIndex: selected === token.id ? 20 : 10,
                           transition: "box-shadow 0.15s, border-color 0.15s",
                           fontFamily: "'Cinzel', serif",
+                          transform: `scale(${1 / zoom})`,
+                          transformOrigin: "center center",
                         }}
                       >
                         <span style={{ fontSize: token.count > 1 ? 12 : 16, lineHeight: 1 }}>{faction.icon}</span>
