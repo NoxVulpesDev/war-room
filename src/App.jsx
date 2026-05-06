@@ -955,12 +955,14 @@ export default function BattleMap() {
 
           </div>
 
-          {/* Token overlay — outside the zoom transform so tokens stay a fixed screen size */}
+          {/* Token overlay — outside zoom transform (crisp rendering) but pixel measurements
+              scaled by zoom so tokens stay proportional to the map */}
           {layoutBounds && (() => {
             const mapScreenLeft = pan.x + layoutBounds.x * zoom;
             const mapScreenTop  = pan.y + layoutBounds.y * zoom;
             const mapScreenW    = layoutBounds.w * zoom;
             const mapScreenH    = layoutBounds.h * zoom;
+            const vr            = TOKEN_RADIUS * zoom;
             return (
               <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
                 {tokens.map(token => {
@@ -988,16 +990,16 @@ export default function BattleMap() {
                       className={locked ? "token-locked" : ""}
                       style={{
                         position: "absolute",
-                        left: screenX - TOKEN_RADIUS,
-                        top:  screenY - TOKEN_RADIUS,
-                        width:  TOKEN_RADIUS * 2,
-                        height: TOKEN_RADIUS * 2,
+                        left: screenX - vr,
+                        top:  screenY - vr,
+                        width:  vr * 2,
+                        height: vr * 2,
                         borderRadius: "50%",
                         background: `radial-gradient(circle at 35% 35%, ${tokenColor.border}33, ${tokenColor.color})`,
-                        border: `2.5px solid ${selected === token.id ? "#f0d060" : tokenColor.border}`,
+                        border: `${2.5 * zoom}px solid ${selected === token.id ? "#f0d060" : tokenColor.border}`,
                         boxShadow: selected === token.id
-                          ? `0 0 0 3px #f0d06066, 0 2px 12px #0008`
-                          : `0 2px 8px #0006`,
+                          ? `0 0 0 ${3 * zoom}px #f0d06066, 0 ${2 * zoom}px ${12 * zoom}px #0008`
+                          : `0 ${2 * zoom}px ${8 * zoom}px #0006`,
                         display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
                         cursor: locked ? "not-allowed"
                           : mode === "move" ? "grab"
@@ -1010,15 +1012,15 @@ export default function BattleMap() {
                         fontFamily: "'Cinzel', serif",
                       }}
                     >
-                      <span style={{ fontSize: token.count > 1 ? 12 : 16, lineHeight: 1 }}>{faction.icon}</span>
+                      <span style={{ fontSize: (token.count > 1 ? 12 : 16) * zoom, lineHeight: 1 }}>{faction.icon}</span>
                       {token.count > 1 && (
-                        <span style={{ fontSize: 10, fontWeight: 700, color: "#f5e8c0", lineHeight: 1 }}>×{token.count}</span>
+                        <span style={{ fontSize: 10 * zoom, fontWeight: 700, color: "#f5e8c0", lineHeight: 1 }}>×{token.count}</span>
                       )}
                       {token.notes?.length > 0 && (
                         <span style={{
-                          position: "absolute", top: -4, right: -4,
-                          width: 10, height: 10, borderRadius: "50%",
-                          background: "#c4952a", border: "1px solid #1a0e05",
+                          position: "absolute", top: -4 * zoom, right: -4 * zoom,
+                          width: 10 * zoom, height: 10 * zoom, borderRadius: "50%",
+                          background: "#c4952a", border: `${zoom}px solid #1a0e05`,
                         }} />
                       )}
                     </div>
