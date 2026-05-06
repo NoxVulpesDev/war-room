@@ -3,62 +3,8 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, getOrCreateUserProfile, subscribeToTokens, saveTokens, deleteToken, getAllUsers } from "./firebase";
 import AuthModal from "./AuthModal";
 import AdminPanel from "./AdminPanel";
-
-const BASE = import.meta.env.BASE_URL;
-const MAPS = [
-  { id: "erin",      label: "Erin",      src: `${BASE}Erin.jpg` },
-  { id: "manx",      label: "Manx",      src: `${BASE}Manx.png` },
-  { id: "cymria",    label: "Cymria",     src: `${BASE}Cymria.png` },
-  { id: "caledonia", label: "Caledonia", src: `${BASE}Cal.jpg` },
-];
-
-const FACTIONS = {
-  player:    { color: "#2d6e3e", border: "#a8d5b5", label: "Player",    icon: "⚔" },
-  enemy:     { color: "#7a7a7a", border: "#000000", label: "Enemy",     icon: "☠" },
-  contested: { color: "#640264", border: "#e8a0d2", label: "Contested", icon: "⚔" },
-};
-
-const NATIONS = {
-  erin:      { color: "#1e5c32", border: "#62c279", label: "Erin",      mapId: "erin" },
-  manx:      { color: "#6e1818", border: "#d05050", label: "Manx",      mapId: "manx" },
-  caledonia: { color: "#172a6e", border: "#5882d8", label: "Caledonia", mapId: "caledonia" },
-  cymria:    { color: "#5c4818", border: "#d4aa30", label: "Cymria",    mapId: "cymria" },
-};
-
-const TOKEN_RADIUS   = 11;
-const MERGE_THRESHOLD = TOKEN_RADIUS * 2.2;
-
-// How long after a local mutation before we flush to Firestore (ms).
-// Debouncing prevents a write per pixel during drags.
-const SAVE_DEBOUNCE = 1200;
-
-function dist(a, b) {
-  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
-}
-
-// Compute the objectFit:contain letterbox rect in a container of cW×cH for an image of iW×iH.
-// Returns {x, y, w, h} in the container's own coordinate space.
-function getMapLayoutBounds(cW, cH, iW, iH) {
-  const cAR = cW / cH;
-  const iAR = iW / iH;
-  if (iAR > cAR) {
-    const h = cW / iAR;
-    return { x: 0, y: (cH - h) / 2, w: cW, h };
-  }
-  const w = cH * iAR;
-  return { x: (cW - w) / 2, y: 0, w, h: cH };
-}
-
-// Returns the map-content bounds in viewport coordinates (accounts for zoom/pan via CSS transform).
-function getMapScreenBounds(imgEl) {
-  if (!imgEl?.naturalWidth) return null;
-  const ir = imgEl.getBoundingClientRect();   // element box in screen px (zoom applied)
-  const b  = getMapLayoutBounds(ir.width, ir.height, imgEl.naturalWidth, imgEl.naturalHeight);
-  return { left: ir.left + b.x, top: ir.top + b.y, width: b.w, height: b.h };
-}
-function generateId() {
-  return Math.random().toString(36).slice(2, 10);
-}
+import { MAPS, FACTIONS, NATIONS, TOKEN_RADIUS, MERGE_THRESHOLD, SAVE_DEBOUNCE } from "./constants";
+import { getMapLayoutBounds, getMapScreenBounds, generateId, findMergeTarget } from "./utils";
 
 function KnotCorner({ x = 0, y = 0 }) {
   return (
@@ -419,11 +365,7 @@ export default function BattleMap() {
           setTokensAndSave(prev => {
             const dragged = prev.find(t => t.id === draggedId);
             if (!dragged) return prev;
-            const mergeTarget = prev.find(t => {
-              if (t.id === draggedId || t.faction !== dragged.faction) return false;
-              return Math.hypot(t.x * mb.width + mb.left - touch.clientX,
-                                t.y * mb.height + mb.top  - touch.clientY) < screenThreshold;
-            });
+            const mergeTarget = findMergeTarget(prev, mb, touch.clientX, touch.clientY, dragged.faction, screenThreshold, draggedId);
             if (mergeTarget) {
               return prev
                 .filter(t => t.id !== draggedId)
@@ -493,11 +435,7 @@ export default function BattleMap() {
     const y = (e.clientY - mb.top)  / mb.height;
 
     const screenThreshold = MERGE_THRESHOLD * zoomRef.current;
-    const nearby = tokens.find(t => {
-      if (t.faction !== placingFaction) return false;
-      return Math.hypot(t.x * mb.width + mb.left - e.clientX,
-                        t.y * mb.height + mb.top  - e.clientY) < screenThreshold;
-    });
+    const nearby = findMergeTarget(tokens, mb, e.clientX, e.clientY, placingFaction, screenThreshold);
 
     if (nearby) {
       setTokensAndSave(prev => prev.map(t => t.id === nearby.id ? { ...t, count: t.count + 1 } : t));
@@ -540,11 +478,7 @@ export default function BattleMap() {
     if (!dragged) return;
 
     const screenThreshold = MERGE_THRESHOLD * zoomRef.current;
-    const mergeTarget = tokens.find(t => {
-      if (t.id === dragId || t.faction !== dragged.faction) return false;
-      return Math.hypot(t.x * mb.width + mb.left - e.clientX,
-                        t.y * mb.height + mb.top  - e.clientY) < screenThreshold;
-    });
+    const mergeTarget = findMergeTarget(tokens, mb, e.clientX, e.clientY, dragged.faction, screenThreshold, dragId);
 
     if (mergeTarget) {
       setTokensAndSave(prev => prev
