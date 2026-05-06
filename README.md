@@ -261,7 +261,7 @@ Login and signup form. Props:
 { onAuth: (firebaseUser, userProfile) => void }
 ```
 
-Handles both login (email + password) and signup (email + password + display name + nation). On success, calls `onAuth` with the resolved profile. Maps Firebase error codes to user-friendly messages.
+Handles login (email + password), signup (email + password + display name + nation), and password reset (sends a Firebase reset email). On success, calls `onAuth` with the resolved profile. Maps Firebase error codes to user-friendly messages.
 
 ### `src/AdminPanel.jsx` — `AdminPanel`
 
@@ -376,6 +376,12 @@ screenY = (token.y * mapNaturalSize.height * zoom) + pan.y + containerSize.heigh
 
 The inverse (`screenToMap`) is applied when computing a placement position from a click event.
 
+### Notes
+
+Any logged-in user can add a note to any token they can view. Notes are automatically prefixed with the author's character name in the format `[CharacterName] text` before being stored.
+
+Removing a note is restricted: the remove button is only shown if the viewer owns the token or has the `admin` or `monarch` role.
+
 ### Auto-merge
 
 When a token is placed or dropped, the app scans existing tokens for any of the same faction within `MERGE_THRESHOLD` pixels (screen space). If found, counts are summed into the existing token and the new/dragged token is discarded.
@@ -421,7 +427,7 @@ transform-origin: center center;
 
 Zoom is applied around the cursor position by adjusting `pan` simultaneously, so the point under the cursor stays visually fixed. This calculation lives in the `handleWheel` handler.
 
-Token sizes counter-scale: `radius = TOKEN_RADIUS / zoom`. Tokens remain a consistent visual size at all zoom levels rather than shrinking with the map.
+Token sizes scale proportionally with zoom: `radius = TOKEN_RADIUS * zoom`. Tokens grow and shrink with the map, maintaining their visual weight relative to the terrain.
 
 Touch support:
 - Single touch → drag pan (or drag a token if touch started on one)
