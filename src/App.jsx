@@ -294,7 +294,7 @@ export default function BattleMap() {
           x: selectedToken.x + offset,
           y: selectedToken.y + offset,
           count: member.count,
-          notes: member.notes ?? [],
+          notes: [],
           ownerId: member.ownerId,
           nation: member.nation,
           members: [{ ...member }],
