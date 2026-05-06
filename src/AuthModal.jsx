@@ -246,9 +246,9 @@ export default function AuthModal({ onAuth }) {
             marginTop: 16, fontSize: 11, color: "#3a2d18", textAlign: "center",
             lineHeight: 1.5, letterSpacing: "0.04em",
           }}>
-            New accounts join as <em style={{ color: "#5c4a28" }}>Player</em>.<br />
+            New accounts join as <em style={{ color: "#5c4a28" }}>Commander</em>.<br />
             Commanders may only place tokens on their own nation's map.<br />
-            The Game Master promotes commanders via the Firebase console.
+            The Game Master may promote commanders to Monarch via the admin panel.
           </p>
         </div>
 
