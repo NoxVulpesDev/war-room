@@ -1,12 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { signOut } from "firebase/auth";
-import { auth, subscribeToTokens, saveTokens, deleteToken } from "./firebase";
+import { auth, deleteToken } from "./firebase";
 import AuthModal from "./AuthModal";
 import AdminPanel from "./AdminPanel";
 import { MAPS, FACTIONS, NATIONS, TOKEN_RADIUS, MERGE_THRESHOLD, SAVE_DEBOUNCE } from "./constants";
 import { getMapLayoutBounds, getMapScreenBounds, generateId, findMergeTarget } from "./utils";
 import KnotCorner from "./components/KnotCorner";
 import { useAuth } from "./hooks/useAuth";
+import { useFirestoreTokenSync } from "./hooks/useFirestoreTokenSync";
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function BattleMap() {
@@ -26,8 +27,13 @@ export default function BattleMap() {
   // True when a non-admin-mode user with a known nation views another nation's map
   const onForeignMap = !isAdminMode && !!selectedMap && !!userProfile?.nation && selectedMap !== userProfile.nation;
 
-  // ── Token state (source of truth = local; synced to/from Firestore) ──────────
-  const [tokens,       setTokens]       = useState([]);
+  const { tokens, setTokens, setTokensAndSave, saveStatus } = useFirestoreTokenSync({
+    isPlayer, selectedMap, sessionId,
+    userId: userProfile?.uid ?? null,
+    isAdminMode,
+  });
+
+  // ── Token state ─────────────────────────────────────────────────────────────
   const [selected,     setSelected]     = useState(null);
   const [placingFaction, setPlacingFaction] = useState("player");
   const [mode,         setMode]         = useState("place");
@@ -37,9 +43,6 @@ export default function BattleMap() {
   const [showAdminPanel,    setShowAdminPanel]    = useState(false);
   const [tokenLimitWarning, setTokenLimitWarning] = useState(false);
   const [splitCount,   setSplitCount]   = useState(1);
-
-  // ── Save status indicator ───────────────────────────────────────────────────
-  const [saveStatus, setSaveStatus] = useState("idle"); // "idle" | "saving" | "saved" | "error"
 
   // ── Pan & zoom ──────────────────────────────────────────────────────────────
   const [zoom, setZoom]           = useState(1);
@@ -54,8 +57,6 @@ export default function BattleMap() {
   const dragPanRef     = useRef(null);
   const touchRef       = useRef(null);
   const tokenTouchRef  = useRef(null);
-  const saveTimerRef   = useRef(null);
-  const localTokensRef = useRef([]); // kept in sync for debounced saves
 
   const [mapNaturalSize, setMapNaturalSize] = useState(null);
 
@@ -91,52 +92,6 @@ export default function BattleMap() {
     setContainerSize({ w: r.width, h: r.height });
     return () => ro.disconnect();
   }, [authReady]);
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // FIRESTORE REAL-TIME LISTENER  (re-subscribes when map changes)
-  // ─────────────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isPlayer || !selectedMap) return;
-    const unsub = subscribeToTokens(sessionId, (remoteTokens) => {
-      // Only update from Firestore if we have no pending local writes
-      // (avoids stomping on mid-drag state)
-      if (!saveTimerRef.current) {
-        setTokens(remoteTokens);
-        localTokensRef.current = remoteTokens;
-      }
-    });
-    return unsub;
-  }, [isPlayer, sessionId, selectedMap]);
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // DEBOUNCED SAVE  — called after every local mutation
-  // ─────────────────────────────────────────────────────────────────────────────
-  const scheduleSave = useCallback((latestTokens, currentUserId, currentIsAdmin) => {
-    if (!isPlayer || !selectedMap) return;
-    localTokensRef.current = latestTokens;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    setSaveStatus("saving");
-    saveTimerRef.current = setTimeout(async () => {
-      saveTimerRef.current = null;
-      try {
-        await saveTokens(sessionId, localTokensRef.current, currentUserId, currentIsAdmin);
-        setSaveStatus("saved");
-        setTimeout(() => setSaveStatus("idle"), 2000);
-      } catch (err) {
-        console.error("Firestore save error:", err);
-        setSaveStatus("error");
-      }
-    }, SAVE_DEBOUNCE);
-  }, [isPlayer, selectedMap, sessionId]);
-
-  // Wrap setTokens so every mutation auto-schedules a save
-  const setTokensAndSave = useCallback((updater) => {
-    setTokens(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      scheduleSave(next, userProfile?.uid ?? null, isAdminMode);
-      return next;
-    });
-  }, [scheduleSave, userProfile?.uid, isAdminMode]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // PERMISSION HELPERS
