@@ -69,7 +69,7 @@ export function subscribeToTokens(sessionId, callback) {
   });
 }
 
-export async function saveTokens(sessionId, tokens, currentUserId = null, isAdmin = false) {
+export async function saveTokens(sessionId, tokens, currentUserId = null, isAdmin = false, deleteIds = []) {
   const batch = writeBatch(db);
   tokens.forEach((token) => {
     if (!isAdmin) {
@@ -86,6 +86,9 @@ export async function saveTokens(sessionId, tokens, currentUserId = null, isAdmi
       nation:    token.nation ?? null,
       updatedAt: serverTimestamp(),
     });
+  });
+  deleteIds.forEach((id) => {
+    batch.delete(doc(db, "sessions", sessionId, "tokens", id));
   });
   await batch.commit();
 }

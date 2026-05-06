@@ -6,8 +6,9 @@ export function useFirestoreTokenSync({ isPlayer, selectedMap, sessionId, userId
   const [tokens,     setTokens]     = useState([]);
   const [saveStatus, setSaveStatus] = useState("idle");
 
-  const saveTimerRef   = useRef(null);
-  const localTokensRef = useRef([]);
+  const saveTimerRef      = useRef(null);
+  const localTokensRef    = useRef([]);
+  const pendingDeletesRef = useRef(new Set());
 
   // Re-subscribe whenever the active map changes
   useEffect(() => {
@@ -23,15 +24,18 @@ export function useFirestoreTokenSync({ isPlayer, selectedMap, sessionId, userId
     return unsub;
   }, [isPlayer, sessionId, selectedMap]);
 
-  const scheduleSave = useCallback((latestTokens) => {
+  const scheduleSave = useCallback((latestTokens, removedIds = []) => {
     if (!isPlayer || !selectedMap) return;
     localTokensRef.current = latestTokens;
+    removedIds.forEach(id => pendingDeletesRef.current.add(id));
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setSaveStatus("saving");
     saveTimerRef.current = setTimeout(async () => {
       saveTimerRef.current = null;
+      const toDelete = [...pendingDeletesRef.current];
+      pendingDeletesRef.current.clear();
       try {
-        await saveTokens(sessionId, localTokensRef.current, userId, isAdminMode);
+        await saveTokens(sessionId, localTokensRef.current, userId, isAdminMode, toDelete);
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 2000);
       } catch (err) {
@@ -44,7 +48,10 @@ export function useFirestoreTokenSync({ isPlayer, selectedMap, sessionId, userId
   const setTokensAndSave = useCallback((updater) => {
     setTokens(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      scheduleSave(next);
+      const prevIds = new Set(prev.map(t => t.id));
+      const nextIds = new Set(next.map(t => t.id));
+      const removedIds = [...prevIds].filter(id => !nextIds.has(id));
+      scheduleSave(next, removedIds);
       return next;
     });
   }, [scheduleSave]);
