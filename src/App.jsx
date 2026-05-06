@@ -161,6 +161,19 @@ export default function BattleMap() {
   }, []);
 
   useEffect(() => {
+    if (userProfile?.nation && !selectedMap) {
+      const map = MAPS.find(m => m.id === userProfile.nation);
+      if (map) {
+        setSelectedMap(userProfile.nation);
+        setMapImage(map.src);
+        setMapNaturalSize(null);
+        setTokens([]);
+        setSelected(null);
+      }
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
