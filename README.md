@@ -355,7 +355,7 @@ Firebase initialisation and all Firestore operations.
 | `db` | Firestore instance | Used internally by all functions below |
 | `getOrCreateUserProfile(user)` | async fn | Creates user doc on signup; merges on subsequent logins |
 | `subscribeToTokens(sessionId, callback)` | fn → unsubscribe | Real-time Firestore listener |
-| `saveTokens(sessionId, tokens, currentUserId, isAdmin)` | async fn | Batch-writes the full token array |
+| `saveTokens(sessionId, tokens, currentUserId, isAdmin)` | async fn | Batch-writes the full token array using an **explicit field list** — adding a new token field requires adding it here too |
 | `deleteToken(sessionId, tokenId)` | async fn | Immediately removes one token document |
 | `getAllUsers()` | async fn | Returns all documents from `users/` collection |
 | `updateUserProfile(uid, updates)` | async fn | Merges a partial update into a user document |
@@ -586,6 +586,8 @@ The `base: '/war-room/'` in `vite.config.js` must match the GitHub Pages subpath
 **Tokens are not deleted on disconnect.** All tokens persist in Firestore indefinitely. There is no ephemeral/presence layer. Session cleanup must be done manually via the Admin Panel or directly in the Firestore console.
 
 **`saveTokens` only writes tokens the caller owns.** Non-admin users filter the token array to `ownerId === currentUserId` before writing. A player cannot overwrite another player's tokens even if local state contains them.
+
+**`saveTokens` uses an explicit field list.** The `batch.set` call in `firebase.js` enumerates every persisted field by name. If a new field is added to the token shape but omitted from that list, it will appear in local state and vanish silently on the next Firestore round-trip. Always add new token fields to both the placement handler in `App.jsx` and the write object in `saveTokens`.
 
 **Legacy role "player".** Early versions used `role: "player"`. The AdminPanel normalises this to `"commander"` in the display layer. If you see `role: "player"` in the database, treat it as `"commander"`.
 
