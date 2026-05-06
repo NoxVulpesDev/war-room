@@ -84,6 +84,7 @@ export async function saveTokens(sessionId, tokens, currentUserId = null, isAdmi
       notes:     token.notes,
       ownerId:   token.ownerId ?? null,
       nation:    token.nation ?? null,
+      members:   token.members ?? [],
       updatedAt: serverTimestamp(),
     });
   });
