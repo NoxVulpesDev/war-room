@@ -235,29 +235,36 @@ export default function BattleMap() {
     setNoteInput("");
   };
 
-  const removeNote = (tokenId, idx) => {
-    setTokensAndSave(prev => prev.map(t =>
-      t.id === tokenId ? { ...t, notes: t.notes.filter((_, i) => i !== idx) } : t
-    ));
+  // source: 'group' for top-level notes, or a member index (number) for member notes
+  const removeNote = (tokenId, source, idx) => {
+    setTokensAndSave(prev => prev.map(t => {
+      if (t.id !== tokenId) return t;
+      if (source === 'group') return { ...t, notes: t.notes.filter((_, i) => i !== idx) };
+      return {
+        ...t,
+        members: t.members.map((m, mi) =>
+          mi === source ? { ...m, notes: m.notes.filter((_, ni) => ni !== idx) } : m
+        ),
+      };
+    }));
   };
 
-  useEffect(() => { setSplitCount(1); }, [selected]);
+  useEffect(() => { setSplitCount(0); }, [selected]);
 
   const handleSplit = () => {
-    if (!selectedToken || selectedToken.count < 2) return;
+    if (!selectedToken) return;
     const mb = getMapScreenBounds(mapImgRef.current);
-    const allMembers = selectedToken.members?.length
-      ? selectedToken.members
-      : [{ id: selectedToken.id + "_m0", count: selectedToken.count, notes: selectedToken.notes ?? [], ownerId: selectedToken.ownerId, nation: selectedToken.nation }];
+    const allMembers = selectedToken.members?.length ? selectedToken.members : null;
 
-    if (allMembers.length > 1) {
-      const n = Math.min(Math.max(1, splitCount), allMembers.length - 1);
-      const toSplit = allMembers.slice(allMembers.length - n);
-      const remaining = allMembers.slice(0, allMembers.length - n);
+    if (allMembers && allMembers.length > 1) {
+      const idx = Math.min(Math.max(0, splitCount), allMembers.length - 1);
+      const member = allMembers[idx];
+      const remaining = allMembers.filter((_, i) => i !== idx);
       const remainingCount = remaining.reduce((s, m) => s + m.count, 0);
-      const newTokens = toSplit.map((member, i) => {
-        const offset = (TOKEN_RADIUS * 3 * (i + 1)) / (mb?.width ?? 800);
-        return {
+      const offset = (TOKEN_RADIUS * 3) / (mb?.width ?? 800);
+      setTokensAndSave(prev => [
+        ...prev.map(t => t.id === selected ? { ...t, count: remainingCount, members: remaining } : t),
+        {
           id: generateId(),
           faction: selectedToken.faction,
           x: selectedToken.x + offset,
@@ -267,13 +274,9 @@ export default function BattleMap() {
           ownerId: member.ownerId,
           nation: member.nation,
           members: [{ ...member }],
-        };
-      });
-      setTokensAndSave(prev => [
-        ...prev.map(t => t.id === selected ? { ...t, count: remainingCount, members: remaining } : t),
-        ...newTokens,
+        },
       ]);
-    } else {
+    } else if (selectedToken.count >= 2) {
       // Legacy path for tokens without members
       const n = Math.min(Math.max(1, splitCount), selectedToken.count - 1);
       const offset = (TOKEN_RADIUS * 3) / (mb?.width ?? 800);
@@ -293,7 +296,7 @@ export default function BattleMap() {
         },
       ]);
     }
-    setSplitCount(1);
+    setSplitCount(0);
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
