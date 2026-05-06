@@ -15,56 +15,83 @@ npm run deploy     # Build + deploy to GitHub Pages at /war-room/
 
 **War Council** is a collaborative real-time battle map tool for tabletop RPG/wargaming. Players and admins place, move, and annotate military tokens on fantasy maps. React 19 + Vite frontend, Firebase (Auth + Firestore) backend, deployed to GitHub Pages.
 
-### Source files
+### Source layout
 
-- `src/main.jsx` — Entry point, renders `<App />`
-- `src/App.jsx` — Entire application (~1100 lines): auth flow, map rendering, token management, permissions, UI
-- `src/AuthModal.jsx` — Login/signup modal with nation selection
-- `src/firebase.js` — Firebase init + all Firestore operations
+```
+src/
+  main.jsx                     Entry point
+  App.jsx                      Top-level component (~440 lines): composes hooks,
+                               owns token interaction handlers, renders layout
+  AuthModal.jsx                Login/signup modal with nation selection
+  AdminPanel.jsx               Admin UI: user management, global settings
+  firebase.js                  Firebase init + all Firestore operations
+  constants.js                 MAPS, FACTIONS, NATIONS, TOKEN_RADIUS,
+                               MERGE_THRESHOLD, SAVE_DEBOUNCE
+  utils.js                     dist(), getMapLayoutBounds(), getMapScreenBounds(),
+                               generateId(), findMergeTarget()
+  hooks/
+    useAuth.js                 Auth state, userProfile, role flags
+                               (isAdmin, isMonarch, isPlayer, isAdminMode)
+    useFirestoreTokenSync.js   Token state, real-time Firestore listener,
+                               debounced save pipeline, saveStatus
+    useMapZoomPan.js           zoom/pan state, wheel/mouse/touch gestures,
+                               canvas resize observer
+  components/
+    MapHeader.jsx              Top toolbar (map select, mode/faction, zoom,
+                               save status, role badge, sign-out)
+    TokenLayer.jsx             Token rendering loop + warning banners
+    TokenPanel.jsx             Slide-out detail panel (count, notes, split, delete)
+    KnotCorner.jsx             Decorative SVG corner ornament
+```
 
 ### Data flow
 
-1. `onAuthStateChanged` → `getOrCreateUserProfile()` → stored in `userProfile` state
-2. Map selection triggers `subscribeToTokens(sessionId, callback)` — real-time Firestore listener
-3. Local token mutations go through `scheduleSave()` — debounced 1200ms → `saveTokens()` batch write
+1. `useAuth` — `onAuthStateChanged` → `getOrCreateUserProfile()` → `userProfile` state + role flags
+2. `App.jsx` — `useEffect` watches `userProfile.nation`; auto-selects home map on first login
+3. `useFirestoreTokenSync` — `subscribeToTokens(sessionId)` real-time listener; local mutations go through `setTokensAndSave()` → 1200ms debounce → `saveTokens()` batch write
+4. `useMapZoomPan` — owns all zoom/pan/gesture state; exposes `zoomRef`/`dragPanRef` so `App.jsx` canvas handlers can read current values without stale closures
 
 ### Firestore schema
 
 ```
-/sessions/{sessionId}/tokens/{tokenId}   — token collections, one per map
-/users/{uid}                             — { role: "admin"|"player", nation, characterName }
+/sessions/{sessionId}/tokens/{tokenId}   — one collection per map (sessionId = map ID)
+/users/{uid}                             — { role, nation, displayName, maxTokens, ... }
+/config/global                           — { defaultMaxTokens }
 ```
 
 ### Token shape
 
 ```js
 {
-  id: string,
+  id:      string,
   faction: "player" | "enemy" | "contested",
-  x: number,   // normalized 0–1
-  y: number,   // normalized 0–1
-  count: number,
-  notes: string[],
-  ownerId: uid | null,   // null for enemy tokens
-  nation: "erin" | "manx" | "cymria" | "caledonia" | null,
+  x:       number,   // normalized 0–1 relative to map image width
+  y:       number,   // normalized 0–1 relative to map image height
+  count:   number,
+  notes:   string[],
+  ownerId: uid | null,   // null for admin-placed enemy tokens
+  nation:  "erin" | "manx" | "cymria" | "caledonia" | null,
 }
 ```
 
 ### Maps & nations
 
-Four maps in `/public/`: `Erin.jpg`, `Manx.png`, `Cymria.png`, `Cal.jpg`. Each map corresponds to a nation; players are assigned a nation at signup. Nation determines which map a player's tokens default to and where placement is restricted.
+Four maps in `/public/`: `Erin.jpg`, `Manx.png`, `Cymria.png`, `Cal.jpg`. Defined in `constants.js` (`MAPS`, `NATIONS`). Nation determines default map on login and where a player may place tokens.
 
 ### Permissions
 
-- **Admins** — can mutate any token, see enemy faction, manage all maps
-- **Players** — can only edit tokens they own (`token.ownerId === uid`), cannot place on foreign-nation maps
+- **Admins** — full access when `adminMode` is toggled on; without it they have player-level restrictions
+- **Monarchs** — can remove any note; otherwise same as commander
+- **Commanders** — can only edit their own tokens; cannot place on foreign maps or place enemy tokens
+
+Role flags (`isAdmin`, `isMonarch`, `isPlayer`, `isAdminMode`) live in `useAuth.js`. `canMutateToken()` and `canPlaceFaction()` live in `App.jsx`.
 
 ### Key config
 
 - `vite.config.js` — base path is `/war-room/` (required for GitHub Pages)
 - `.env.local` — Firebase credentials (not committed); Firebase project ID: `war-room-81e5c`
-- All styling is inline CSS inside components — no separate CSS files or preprocessor
+- All styling is inline CSS inside components; shared CSS class names (`.toolbar-btn`, `.mode-btn`, etc.) are defined in a `<style>` block rendered by `App.jsx`
 
 ## README maintenance
 
-After any commit that modifies `src/App.jsx`, `src/firebase.js`, `src/AuthModal.jsx`, `src/AdminPanel.jsx`, `vite.config.js`, or `package.json`, review `README.md` and update any sections that are now out of date. Not every commit requires a README change — only update what has actually changed (schema, permissions, component APIs, constants, scripts, etc.). Do not rewrite sections that are still accurate.
+After any commit that modifies `src/App.jsx`, `src/firebase.js`, `src/AuthModal.jsx`, `src/AdminPanel.jsx`, `src/constants.js`, `src/utils.js`, any file under `src/hooks/`, any file under `src/components/`, `vite.config.js`, or `package.json`, review `README.md` and update any sections that are now out of date. Not every commit requires a README change — only update what has actually changed (schema, permissions, component APIs, constants, scripts, etc.). Do not rewrite sections that are still accurate.
