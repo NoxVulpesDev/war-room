@@ -2,9 +2,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { deleteToken } from "./firebase";
 import AuthModal from "./AuthModal";
 import AdminPanel from "./AdminPanel";
-import { MAPS, FACTIONS, NATIONS, TOKEN_RADIUS, MERGE_THRESHOLD, SAVE_DEBOUNCE } from "./constants";
+import { MAPS, TOKEN_RADIUS, MERGE_THRESHOLD, SAVE_DEBOUNCE } from "./constants";
 import { getMapLayoutBounds, getMapScreenBounds, generateId, findMergeTarget } from "./utils";
-import KnotCorner from "./components/KnotCorner";
 import MapHeader from "./components/MapHeader";
 import TokenLayer from "./components/TokenLayer";
 import TokenPanel from "./components/TokenPanel";
@@ -15,10 +14,10 @@ import { useMapZoomPan } from "./hooks/useMapZoomPan";
 // ─────────────────────────────────────────────────────────────────────────────
 export default function BattleMap() {
   const {
-    authReady, firebaseUser, userProfile, setUserProfile,
-    userProfiles, showAuthModal, setShowAuthModal,
+    authReady, firebaseUser, userProfile,
+    userProfiles, showAuthModal,
     adminMode, setAdminMode,
-    isAdmin, isMonarch, isCommander, isPlayer, isAdminMode,
+    isAdmin, isMonarch, isPlayer, isAdminMode,
     handleAuthSuccess,
   } = useAuth();
 
@@ -69,7 +68,7 @@ export default function BattleMap() {
         setSelected(null);
       }
     }
-  }, [userProfile]);
+  }, [userProfile, selectedMap]);
 
   const {
     zoom, pan, canvasCursor, containerSize,
@@ -145,7 +144,7 @@ export default function BattleMap() {
         nation:  userProfile?.nation ?? null,
       }]);
     }
-  }, [mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdminMode, selectedMap]);
+  }, [mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdminMode, selectedMap, setTokenLimitWarning]);
 
   const handleDragStart = (e, id) => {
     if (mode !== "move") return;

@@ -10,11 +10,9 @@ export function useAuth() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [adminMode,     setAdminMode]     = useState(false);
 
-  const isAdmin     = userProfile?.role === "admin";
-  const isMonarch   = userProfile?.role === "monarch";
-  // treat legacy "player" role as commander
-  const isCommander = userProfile?.role === "commander" || userProfile?.role === "player";
-  const isPlayer    = !!firebaseUser;
+  const isAdmin   = userProfile?.role === "admin";
+  const isMonarch = userProfile?.role === "monarch";
+  const isPlayer  = !!firebaseUser;
   // Admins only get elevated permissions when they have explicitly enabled admin mode
   const isAdminMode = isAdmin && adminMode;
 
@@ -51,10 +49,10 @@ export function useAuth() {
   };
 
   return {
-    authReady, firebaseUser, userProfile, setUserProfile,
-    userProfiles, showAuthModal, setShowAuthModal,
+    authReady, firebaseUser, userProfile,
+    userProfiles, showAuthModal,
     adminMode, setAdminMode,
-    isAdmin, isMonarch, isCommander, isPlayer, isAdminMode,
+    isAdmin, isMonarch, isPlayer, isAdminMode,
     handleAuthSuccess,
   };
 }
