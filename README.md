@@ -227,8 +227,9 @@ App.jsx (BattleMap)
   nation:    "erin" | "manx" | "cymria" | "caledonia" | null,
   members:   Array<{           // Individual token identities within a group
     id:      string,
+    name:    string,           // User-assigned unit name (e.g. "1st Erin Infantry")
     count:   number,
-    notes:   string[],         // Notes that existed before this member was grouped
+    notes:   string[],         // Notes on this specific member
     ownerId: string | null,
     nation:  string | null,
   }>,
@@ -323,7 +324,7 @@ Renders the token overlay (positioned absolutely over the canvas, outside the zo
 
 ### `src/components/TokenPanel.jsx`
 
-Slide-out detail panel (right edge). Shows faction, count controls, split controls, field notes (group-level + all member notes combined), and the remove button. When a token has two or more members the split section renders a dropdown listing each member by owner/nation/count; for legacy tokens it falls back to a numeric picker. Computes its own `locked` state from `canMutateToken(selectedToken)`. Imports `deleteToken` from `firebase.js` directly.
+Slide-out detail panel (right edge). Shows faction, count controls, a **Unit Name** input (per-member, controlled by the split dropdown selection), split controls, field notes grouped by member with headers, a per-member note target dropdown, and the remove button. When a token has two or more members the split section renders a dropdown listing each member by unit name / owner / nation / count; for legacy tokens it falls back to a numeric picker. Computes its own `locked` state from `canMutateToken(selectedToken)`. Imports `deleteToken` from `firebase.js` directly.
 
 ### `src/AuthModal.jsx` — `AuthModal`
 
@@ -472,11 +473,13 @@ where `mapScreenLeft/Top/Width/Height` are the bounding rect of the rendered `<i
 
 Any logged-in user can add a note to any token they can view. Notes are automatically prefixed with the author's character name in the format `[CharacterName] text` before being stored.
 
-The detail panel displays two kinds of notes in a flat list:
-- **Member notes** — notes that existed on a token before it was grouped in; stored on the individual `members[i].notes` array.
-- **Group notes** — notes added after grouping via the note input; stored on the top-level `token.notes` array.
+The detail panel displays two kinds of notes:
+- **Member notes** — stored on `members[i].notes`; belong to a specific member and travel with that member through group/split operations.
+- **Group notes** — stored on the top-level `token.notes`; added after grouping and scoped to the group as a whole.
 
-Removing a note is restricted: the remove button is only shown if the viewer owns the token or has the `admin` or `monarch` role. `removeNote` takes a `source` argument — `'group'` for top-level notes, or the member index (number) for member notes — so each remove targets the correct array.
+When a token is grouped the notes panel shows each member's notes under a `◈ Name — Nation` header, followed by a `◈ Group` section for group-level notes. A "Note on: …" dropdown above the note input lets the user target a specific member or the group; pressing Enter respects the current target.
+
+Removing a note is restricted: the remove button is only shown if the viewer owns the token or has the `admin` or `monarch` role. `removeNote(tokenId, source, idx)` takes a `source` of `'group'` for top-level notes or a member index (number) for member notes.
 
 ### Auto-grouping
 
@@ -484,9 +487,15 @@ When a token is placed or dropped, `findMergeTarget()` (in `utils.js`) scans exi
 
 Legacy tokens without a `members` field are normalised to a single-member array on the fly when grouped.
 
+### Unit names
+
+Each member carries a `name` string (e.g. "1st Erin Infantry"). The detail panel shows a **Unit Name** input below the faction card. For single tokens it edits the sole member's name; for grouped tokens it edits whichever member is currently selected in the split dropdown, so the dropdown doubles as a member selector for both splitting and name editing.
+
+Member names appear as the primary label in the split dropdown and in the per-member note headers.
+
 ### Splitting
 
-The detail panel shows a **member dropdown** when a token has two or more members. Each option displays the member's owner name, nation, and unit count. Selecting a member and clicking "Split off selected" removes that member from the group and creates a new individual token at a small offset, restoring its original notes, `ownerId`, and `nation`.
+The detail panel shows a **member dropdown** when a token has two or more members. Each option displays the member's unit name (falling back to owner display name), nation, and unit count. Selecting a member and clicking "Split off selected" removes that member from the group and creates a new individual token at a small offset, restoring its original name, notes, `ownerId`, and `nation`.
 
 For legacy tokens without a `members` array, the panel falls back to a numeric count picker that splits N units off the top-level count.
 
@@ -612,9 +621,10 @@ The `base: '/war-room/'` in `vite.config.js` must match the GitHub Pages subpath
 ### Adding a new token field
 
 1. Add the field to the token object in the placement handler in `App.jsx`
-2. Include it in the `saveTokens()` write object in `firebase.js`
-3. Include it in the snapshot mapping in `subscribeToTokens()` in `firebase.js`
-4. Render and/or edit it in `TokenPanel.jsx`
+2. Include it in the `saveTokens()` write object in `firebase.js` (explicit field list — easy to miss)
+3. Render and/or edit it in `TokenPanel.jsx`
+
+If the field belongs on individual members rather than the group, add it to the member shape inside every `members` array construction site in `App.jsx` (new token, click-group, drag-group normalisation, and split). Member fields are persisted automatically as part of the `members` array.
 
 ### Adding a new user role
 
