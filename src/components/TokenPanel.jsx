@@ -1,5 +1,11 @@
+import { useState, useEffect } from "react";
 import { FACTIONS, NATIONS } from "../constants";
 import { deleteToken } from "../firebase";
+
+const noteRow = { display: "flex", alignItems: "flex-start", gap: 6, padding: "6px 8px", background: "#2c1a06", borderRadius: 3, border: "1px solid #3a2209", marginBottom: 4 };
+const sectionLabel = { fontSize: 12, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 8px" };
+const memberHeader = { fontSize: 11, color: "#c4952a", fontFamily: "'Cinzel', serif", letterSpacing: "0.06em", textTransform: "uppercase", margin: "8px 0 4px", paddingLeft: 2 };
+const selectStyle = { background: "#1f1005", border: "1px solid #5c3d11", borderRadius: 3, color: "#e8d5a3", fontFamily: "'Crimson Text', serif", fontSize: 13, padding: "5px 8px", width: "100%", outline: "none", cursor: "pointer" };
 
 export default function TokenPanel({
   selectedToken, showPanel,
@@ -9,9 +15,24 @@ export default function TokenPanel({
   setTokensAndSave,
   noteInput, setNoteInput, addNote, removeNote,
   splitCount, setSplitCount, handleSplit,
+  handleSetMemberName,
   sessionId,
 }) {
   const locked = selectedToken ? !canMutateToken(selectedToken) : true;
+  const [noteTarget, setNoteTarget] = useState(0);
+
+  const members = selectedToken?.members ?? [];
+  const isGrouped = members.length > 1;
+  const activeMemberIdx = isGrouped ? Math.min(splitCount, members.length - 1) : 0;
+  const activeMember = members[activeMemberIdx] ?? null;
+
+  useEffect(() => { setNoteTarget(0); }, [selected]);
+
+  const memberLabel = (member) => {
+    const name = member.name?.trim() || (member.ownerId && userProfiles[member.ownerId]) || "Unnamed";
+    const nation = member.nation && NATIONS[member.nation] ? NATIONS[member.nation].label : null;
+    return nation ? `${name} — ${nation}` : name;
+  };
 
   return (
     <div style={{
@@ -26,6 +47,8 @@ export default function TokenPanel({
     }}>
       {selectedToken && (
         <div style={{ width: 260, padding: "20px 16px" }}>
+
+          {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 13, fontWeight: 700, color: "#f0d060", margin: 0, letterSpacing: "0.08em" }}>
               Token Details
@@ -40,7 +63,8 @@ export default function TokenPanel({
             </p>
           )}
 
-          <div style={{ padding: "10px 12px", background: "#2c1a06", borderRadius: 4, border: "1px solid #3a2209", marginBottom: 16 }}>
+          {/* Faction + Count */}
+          <div style={{ padding: "10px 12px", background: "#2c1a06", borderRadius: 4, border: "1px solid #3a2209", marginBottom: 12 }}>
             <p style={{ margin: "0 0 4px", fontSize: 13, color: "#8b7040" }}>Faction</p>
             <p style={{
               margin: "0 0 10px", fontSize: 15, fontWeight: 600,
@@ -57,37 +81,46 @@ export default function TokenPanel({
             </p>
             <p style={{ margin: "0 0 4px", fontSize: 13, color: "#8b7040" }}>Count</p>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button
-                disabled={locked}
+              <button disabled={locked}
                 onClick={() => !locked && setTokensAndSave(prev => prev.map(t => t.id === selected && t.count > 1 ? { ...t, count: t.count - 1 } : t))}
-                style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: locked ? "not-allowed" : "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", opacity: locked ? 0.5 : 1 }}
-              >−</button>
+                style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: locked ? "not-allowed" : "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", opacity: locked ? 0.5 : 1 }}>−</button>
               <span style={{ fontSize: 18, fontFamily: "'Cinzel', serif", fontWeight: 700, color: "#f5e8c0", minWidth: 24, textAlign: "center" }}>{selectedToken.count}</span>
-              <button
-                disabled={locked}
+              <button disabled={locked}
                 onClick={() => !locked && setTokensAndSave(prev => prev.map(t => t.id === selected ? { ...t, count: t.count + 1 } : t))}
-                style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: locked ? "not-allowed" : "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", opacity: locked ? 0.5 : 1 }}
-              >+</button>
+                style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: locked ? "not-allowed" : "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", opacity: locked ? 0.5 : 1 }}>+</button>
             </div>
           </div>
 
+          {/* Unit Name */}
+          {activeMember !== null && (
+            <div style={{ marginBottom: 16 }}>
+              <p style={sectionLabel}>Unit Name</p>
+              <input
+                className="note-input"
+                value={activeMember.name ?? ""}
+                onChange={e => !locked && handleSetMemberName(selected, activeMemberIdx, e.target.value)}
+                placeholder={isGrouped ? `Name for ${memberLabel(activeMember)}…` : "Name this unit…"}
+                readOnly={locked}
+                style={{ width: "100%", opacity: locked ? 0.6 : 1 }}
+              />
+              {isGrouped && (
+                <p style={{ margin: "4px 0 0", fontSize: 11, color: "#5c4a28" }}>Editing name for selected member — use the split dropdown to switch</p>
+              )}
+            </div>
+          )}
+
+          {/* Split Forces */}
           {selectedToken.count > 1 && !locked && (
             <div style={{ marginBottom: 16 }}>
-              <p style={{ fontSize: 12, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 8px" }}>
-                Split Forces
-              </p>
-              {selectedToken.members?.length > 1 ? (
+              <p style={sectionLabel}>Split Forces</p>
+              {isGrouped ? (
                 <>
-                  <select
-                    value={splitCount}
-                    onChange={e => setSplitCount(Number(e.target.value))}
-                    style={{ background: "#1f1005", border: "1px solid #5c3d11", borderRadius: 3, color: "#e8d5a3", fontFamily: "'Crimson Text', serif", fontSize: 13, padding: "5px 8px", width: "100%", outline: "none", cursor: "pointer", marginBottom: 6 }}
-                  >
-                    {selectedToken.members.map((member, i) => {
-                      const name = (member.ownerId && userProfiles[member.ownerId]) || 'Unknown';
+                  <select value={splitCount} onChange={e => setSplitCount(Number(e.target.value))}
+                    style={{ ...selectStyle, marginBottom: 6 }}>
+                    {members.map((member, i) => {
+                      const name = member.name?.trim() || (member.ownerId && userProfiles[member.ownerId]) || "Unnamed";
                       const nation = member.nation && NATIONS[member.nation] ? NATIONS[member.nation].label : null;
-                      const label = nation ? `${name} — ${nation} (${member.count} unit${member.count !== 1 ? 's' : ''})` : `${name} (${member.count} unit${member.count !== 1 ? 's' : ''})`;
-                      return <option key={i} value={i}>{label}</option>;
+                      return <option key={i} value={i}>{name}{nation ? ` — ${nation}` : ""} ({member.count} unit{member.count !== 1 ? "s" : ""})</option>;
                     })}
                   </select>
                   <button onClick={handleSplit}
@@ -111,46 +144,69 @@ export default function TokenPanel({
             </div>
           )}
 
-          <p style={{ fontSize: 12, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 8px" }}>
-            Field Notes
-          </p>
+          {/* Field Notes */}
+          <p style={sectionLabel}>Field Notes</p>
           <div style={{ marginBottom: 10 }}>
-            {selectedToken.notes.map((note, i) => (
-              <div key={`g-${i}`} style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "6px 8px", background: "#2c1a06", borderRadius: 3, border: "1px solid #3a2209", marginBottom: 4 }}>
-                <span style={{ fontSize: 12, color: "#c4952a", flexShrink: 0, marginTop: 1 }}>◆</span>
-                <span style={{ fontSize: 13, color: "#e8d5a3", flex: 1, lineHeight: 1.4 }}>{note}</span>
-                {(!locked || isAdmin || isMonarch) && (
-                  <button onClick={() => removeNote(selected, 'group', i)}
-                    style={{ background: "none", border: "none", color: "#5c3d11", cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1, flexShrink: 0 }}>✕</button>
-                )}
-              </div>
-            ))}
-            {selectedToken.members?.flatMap((member, mi) =>
-              (member.notes ?? []).map((note, ni) => (
-                <div key={`m-${mi}-${ni}`} style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "6px 8px", background: "#2c1a06", borderRadius: 3, border: "1px solid #3a2209", marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, color: "#c4952a", flexShrink: 0, marginTop: 1 }}>◆</span>
-                  <span style={{ fontSize: 13, color: "#e8d5a3", flex: 1, lineHeight: 1.4 }}>{note}</span>
-                  {(!locked || isAdmin || isMonarch) && (
-                    <button onClick={() => removeNote(selected, mi, ni)}
-                      style={{ background: "none", border: "none", color: "#5c3d11", cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1, flexShrink: 0 }}>✕</button>
-                  )}
+            {members.map((member, mi) => {
+              const notes = member.notes ?? [];
+              if (notes.length === 0) return null;
+              return (
+                <div key={`ms-${mi}`}>
+                  {isGrouped && <p style={memberHeader}>◈ {memberLabel(member)}</p>}
+                  {notes.map((note, ni) => (
+                    <div key={`m-${mi}-${ni}`} style={noteRow}>
+                      <span style={{ fontSize: 12, color: "#c4952a", flexShrink: 0, marginTop: 1 }}>◆</span>
+                      <span style={{ fontSize: 13, color: "#e8d5a3", flex: 1, lineHeight: 1.4 }}>{note}</span>
+                      {(!locked || isAdmin || isMonarch) && (
+                        <button onClick={() => removeNote(selected, mi, ni)}
+                          style={{ background: "none", border: "none", color: "#5c3d11", cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1, flexShrink: 0 }}>✕</button>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))
+              );
+            })}
+            {selectedToken.notes.length > 0 && (
+              <div>
+                {isGrouped && <p style={memberHeader}>◈ Group</p>}
+                {selectedToken.notes.map((note, i) => (
+                  <div key={`g-${i}`} style={noteRow}>
+                    <span style={{ fontSize: 12, color: "#c4952a", flexShrink: 0, marginTop: 1 }}>◆</span>
+                    <span style={{ fontSize: 13, color: "#e8d5a3", flex: 1, lineHeight: 1.4 }}>{note}</span>
+                    {(!locked || isAdmin || isMonarch) && (
+                      <button onClick={() => removeNote(selected, "group", i)}
+                        style={{ background: "none", border: "none", color: "#5c3d11", cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1, flexShrink: 0 }}>✕</button>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
+          {/* Add Note */}
           {!!userProfile && (
-            <div style={{ display: "flex", gap: 6 }}>
-              <input
-                className="note-input"
-                value={noteInput}
-                onChange={e => setNoteInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && addNote()}
-                placeholder="Add a note…"
-                style={{ flex: 1 }}
-              />
-              <button onClick={addNote}
-                style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, padding: "5px 10px", cursor: "pointer", fontFamily: "'Cinzel', serif", fontSize: 11 }}>+</button>
+            <div style={{ marginBottom: 16 }}>
+              {isGrouped && (
+                <select value={noteTarget} onChange={e => setNoteTarget(e.target.value === "group" ? "group" : Number(e.target.value))}
+                  style={{ ...selectStyle, fontSize: 12, marginBottom: 6 }}>
+                  {members.map((m, i) => (
+                    <option key={i} value={i}>Note on: {m.name?.trim() || (m.ownerId && userProfiles[m.ownerId]) || "Unnamed"}</option>
+                  ))}
+                  <option value="group">Note on: Group</option>
+                </select>
+              )}
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  className="note-input"
+                  value={noteInput}
+                  onChange={e => setNoteInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && addNote(noteTarget)}
+                  placeholder="Add a note…"
+                  style={{ flex: 1 }}
+                />
+                <button onClick={() => addNote(noteTarget)}
+                  style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, padding: "5px 10px", cursor: "pointer", fontFamily: "'Cinzel', serif", fontSize: 11 }}>+</button>
+              </div>
             </div>
           )}
 
@@ -162,7 +218,7 @@ export default function TokenPanel({
                 setSelected(null);
                 setShowPanel(false);
               }}
-              style={{ marginTop: 20, width: "100%", padding: "7px", borderRadius: 3, background: "#2d0a0a", border: "1px solid #5c1a1a", color: "#e05050", fontFamily: "'Cinzel', serif", fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}
+              style={{ marginTop: 4, width: "100%", padding: "7px", borderRadius: 3, background: "#2d0a0a", border: "1px solid #5c1a1a", color: "#e05050", fontFamily: "'Cinzel', serif", fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}
             >
               ✕ Remove Token
             </button>

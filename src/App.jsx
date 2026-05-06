@@ -138,11 +138,11 @@ export default function BattleMap() {
         if (t.id !== nearby.id) return t;
         const existingMembers = t.members?.length
           ? t.members
-          : [{ id: t.id + "_m0", count: t.count, notes: t.notes ?? [], ownerId: t.ownerId, nation: t.nation }];
+          : [{ id: t.id + "_m0", name: t.name ?? '', count: t.count, notes: t.notes ?? [], ownerId: t.ownerId, nation: t.nation }];
         return {
           ...t,
           count: t.count + 1,
-          members: [...existingMembers, { id: generateId(), count: 1, notes: [], ownerId: userProfile?.uid ?? null, nation: userProfile?.nation ?? null }],
+          members: [...existingMembers, { id: generateId(), name: '', count: 1, notes: [], ownerId: userProfile?.uid ?? null, nation: userProfile?.nation ?? null }],
         };
       }));
     } else {
@@ -155,7 +155,7 @@ export default function BattleMap() {
         notes: [],
         ownerId: userProfile?.uid ?? null,
         nation:  userProfile?.nation ?? null,
-        members: [{ id: memberId, count: 1, notes: [], ownerId: userProfile?.uid ?? null, nation: userProfile?.nation ?? null }],
+        members: [{ id: memberId, name: '', count: 1, notes: [], ownerId: userProfile?.uid ?? null, nation: userProfile?.nation ?? null }],
       }]);
     }
   }, [mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdminMode, selectedMap, setTokenLimitWarning]);
@@ -191,14 +191,14 @@ export default function BattleMap() {
     if (mergeTarget) {
       const draggedMembers = dragged.members?.length
         ? dragged.members
-        : [{ id: dragged.id + "_m0", count: dragged.count, notes: dragged.notes ?? [], ownerId: dragged.ownerId, nation: dragged.nation }];
+        : [{ id: dragged.id + "_m0", name: dragged.name ?? '', count: dragged.count, notes: dragged.notes ?? [], ownerId: dragged.ownerId, nation: dragged.nation }];
       setTokensAndSave(prev => prev
         .filter(t => t.id !== dragId)
         .map(t => {
           if (t.id !== mergeTarget.id) return t;
           const targetMembers = t.members?.length
             ? t.members
-            : [{ id: t.id + "_m0", count: t.count, notes: t.notes ?? [], ownerId: t.ownerId, nation: t.nation }];
+            : [{ id: t.id + "_m0", name: t.name ?? '', count: t.count, notes: t.notes ?? [], ownerId: t.ownerId, nation: t.nation }];
           return { ...t, count: t.count + dragged.count, members: [...targetMembers, ...draggedMembers] };
         })
       );
@@ -225,14 +225,38 @@ export default function BattleMap() {
     setShowPanel(true);
   };
 
-  const addNote = () => {
+  // target: 'group' adds to top-level notes; a number adds to that member's notes
+  const addNote = (target = 'group') => {
     if (!noteInput.trim() || !selected) return;
     const author = userProfile?.displayName;
     const text   = author ? `[${author}] ${noteInput.trim()}` : noteInput.trim();
-    setTokensAndSave(prev => prev.map(t =>
-      t.id === selected ? { ...t, notes: [...t.notes, text] } : t
-    ));
+    if (target === 'group') {
+      setTokensAndSave(prev => prev.map(t =>
+        t.id === selected ? { ...t, notes: [...t.notes, text] } : t
+      ));
+    } else {
+      setTokensAndSave(prev => prev.map(t => {
+        if (t.id !== selected) return t;
+        if (!t.members?.length) return { ...t, notes: [...t.notes, text] };
+        return {
+          ...t,
+          members: t.members.map((m, mi) =>
+            mi === target ? { ...m, notes: [...(m.notes ?? []), text] } : m
+          ),
+        };
+      }));
+    }
     setNoteInput("");
+  };
+
+  const handleSetMemberName = (tokenId, memberIdx, name) => {
+    setTokensAndSave(prev => prev.map(t => {
+      if (t.id !== tokenId || !t.members?.length) return t;
+      return {
+        ...t,
+        members: t.members.map((m, mi) => mi === memberIdx ? { ...m, name } : m),
+      };
+    }));
   };
 
   // source: 'group' for top-level notes, or a member index (number) for member notes
@@ -473,6 +497,7 @@ export default function BattleMap() {
           noteInput={noteInput} setNoteInput={setNoteInput}
           addNote={addNote} removeNote={removeNote}
           splitCount={splitCount} setSplitCount={setSplitCount} handleSplit={handleSplit}
+          handleSetMemberName={handleSetMemberName}
           sessionId={sessionId}
         />
       </div>
