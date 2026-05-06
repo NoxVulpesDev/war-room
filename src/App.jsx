@@ -1,30 +1,22 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { auth, getOrCreateUserProfile, subscribeToTokens, saveTokens, deleteToken, getAllUsers } from "./firebase";
+import { signOut } from "firebase/auth";
+import { auth, subscribeToTokens, saveTokens, deleteToken } from "./firebase";
 import AuthModal from "./AuthModal";
 import AdminPanel from "./AdminPanel";
 import { MAPS, FACTIONS, NATIONS, TOKEN_RADIUS, MERGE_THRESHOLD, SAVE_DEBOUNCE } from "./constants";
 import { getMapLayoutBounds, getMapScreenBounds, generateId, findMergeTarget } from "./utils";
 import KnotCorner from "./components/KnotCorner";
+import { useAuth } from "./hooks/useAuth";
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function BattleMap() {
-  // ── Auth state ──────────────────────────────────────────────────────────────
-  const [authReady,   setAuthReady]   = useState(false);   // true once onAuthStateChanged fires
-  const [firebaseUser, setFirebaseUser] = useState(null);
-  const [userProfile,  setUserProfile]  = useState(null);  // { uid, displayName, role, … }
-  const [userProfiles, setUserProfiles] = useState({});    // uid → displayName
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [adminMode,     setAdminMode]     = useState(false);
-
-  // Derived convenience
-  const isAdmin     = userProfile?.role === "admin";
-  const isMonarch   = userProfile?.role === "monarch";
-  // treat legacy "player" role as commander
-  const isCommander = userProfile?.role === "commander" || userProfile?.role === "player";
-  const isPlayer    = !!firebaseUser;
-  // Admins only get elevated permissions when they have explicitly enabled admin mode
-  const isAdminMode = isAdmin && adminMode;
+  const {
+    authReady, firebaseUser, userProfile, setUserProfile,
+    userProfiles, showAuthModal, setShowAuthModal,
+    adminMode, setAdminMode,
+    isAdmin, isMonarch, isCommander, isPlayer, isAdminMode,
+    handleAuthSuccess,
+  } = useAuth();
 
   // ── Map / session state ─────────────────────────────────────────────────────
   const [mapImage,     setMapImage]     = useState(null);
@@ -74,26 +66,6 @@ export default function BattleMap() {
     MAPS.forEach(({ src }) => { const img = new Image(); img.src = src; });
   }, []);
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // AUTH BOOTSTRAP
-  // ─────────────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser) {
-        const profile = await getOrCreateUserProfile(fbUser);
-        setFirebaseUser(fbUser);
-        setUserProfile(profile);
-        setShowAuthModal(false);
-      } else {
-        setFirebaseUser(null);
-        setUserProfile(null);
-        setShowAuthModal(true);
-      }
-      setAuthReady(true);
-    });
-    return unsub;
-  }, []);
-
   useEffect(() => {
     if (userProfile?.nation && !selectedMap) {
       const map = MAPS.find(m => m.id === userProfile.nation);
@@ -106,15 +78,6 @@ export default function BattleMap() {
       }
     }
   }, [userProfile]);
-
-  useEffect(() => {
-    if (!isPlayer) return;
-    getAllUsers().then(users => {
-      const map = {};
-      users.forEach(u => { map[u.uid] = u.displayName; });
-      setUserProfiles(map);
-    });
-  }, [isPlayer]);
 
   useEffect(() => {
     const el = canvasRef.current;
@@ -569,11 +532,7 @@ export default function BattleMap() {
       display: "flex",
       flexDirection: "column",
     }}>
-      {showAuthModal && <AuthModal onAuth={(fbUser, profile) => {
-        setFirebaseUser(fbUser);
-        setUserProfile(profile);
-        setShowAuthModal(false);
-      }} />}
+      {showAuthModal && <AuthModal onAuth={handleAuthSuccess} />}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
