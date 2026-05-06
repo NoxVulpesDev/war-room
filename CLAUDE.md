@@ -64,3 +64,7 @@ Four maps in `/public/`: `Erin.jpg`, `Manx.png`, `Cymria.png`, `Cal.jpg`. Each m
 - `vite.config.js` — base path is `/war-room/` (required for GitHub Pages)
 - `.env.local` — Firebase credentials (not committed); Firebase project ID: `war-room-81e5c`
 - All styling is inline CSS inside components — no separate CSS files or preprocessor
+
+## README maintenance
+
+After any commit that modifies `src/App.jsx`, `src/firebase.js`, `src/AuthModal.jsx`, `src/AdminPanel.jsx`, `vite.config.js`, or `package.json`, review `README.md` and update any sections that are now out of date. Not every commit requires a README change — only update what has actually changed (schema, permissions, component APIs, constants, scripts, etc.). Do not rewrite sections that are still accurate.
