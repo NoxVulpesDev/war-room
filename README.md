@@ -323,7 +323,7 @@ Renders the token overlay (positioned absolutely over the canvas, outside the zo
 
 ### `src/components/TokenPanel.jsx`
 
-Slide-out detail panel (right edge). Shows faction, count controls, split controls, field notes, and the remove button. Computes its own `locked` state from `canMutateToken(selectedToken)`. Imports `deleteToken` from `firebase.js` directly.
+Slide-out detail panel (right edge). Shows faction, count controls, split controls, field notes (group-level + all member notes combined), and the remove button. When a token has two or more members the split section renders a dropdown listing each member by owner/nation/count; for legacy tokens it falls back to a numeric picker. Computes its own `locked` state from `canMutateToken(selectedToken)`. Imports `deleteToken` from `firebase.js` directly.
 
 ### `src/AuthModal.jsx` — `AuthModal`
 
@@ -472,7 +472,11 @@ where `mapScreenLeft/Top/Width/Height` are the bounding rect of the rendered `<i
 
 Any logged-in user can add a note to any token they can view. Notes are automatically prefixed with the author's character name in the format `[CharacterName] text` before being stored.
 
-Removing a note is restricted: the remove button is only shown if the viewer owns the token or has the `admin` or `monarch` role.
+The detail panel displays two kinds of notes in a flat list:
+- **Member notes** — notes that existed on a token before it was grouped in; stored on the individual `members[i].notes` array.
+- **Group notes** — notes added after grouping via the note input; stored on the top-level `token.notes` array.
+
+Removing a note is restricted: the remove button is only shown if the viewer owns the token or has the `admin` or `monarch` role. `removeNote` takes a `source` argument — `'group'` for top-level notes, or the member index (number) for member notes — so each remove targets the correct array.
 
 ### Auto-grouping
 
@@ -482,7 +486,9 @@ Legacy tokens without a `members` field are normalised to a single-member array 
 
 ### Splitting
 
-From the detail panel, a user can split N members off a grouped token. Each split-off member becomes an independent token, restoring its original notes, `ownerId`, and `nation`. The selected count is bounded to `members.length − 1` so the group always retains at least one member. For legacy tokens without a `members` array the old count-based split path is used as a fallback.
+The detail panel shows a **member dropdown** when a token has two or more members. Each option displays the member's owner name, nation, and unit count. Selecting a member and clicking "Split off selected" removes that member from the group and creates a new individual token at a small offset, restoring its original notes, `ownerId`, and `nation`.
+
+For legacy tokens without a `members` array, the panel falls back to a numeric count picker that splits N units off the top-level count.
 
 ### Token limits
 
