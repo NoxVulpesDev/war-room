@@ -579,8 +579,10 @@ export default function BattleMap() {
 
   const addNote = () => {
     if (!noteInput.trim() || !selected) return;
+    const author = userProfile?.displayName;
+    const text   = author ? `[${author}] ${noteInput.trim()}` : noteInput.trim();
     setTokensAndSave(prev => prev.map(t =>
-      t.id === selected ? { ...t, notes: [...t.notes, noteInput.trim()] } : t
+      t.id === selected ? { ...t, notes: [...t.notes, text] } : t
     ));
     setNoteInput("");
   };
@@ -1168,7 +1170,7 @@ export default function BattleMap() {
                     <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "6px 8px", background: "#2c1a06", borderRadius: 3, border: "1px solid #3a2209", marginBottom: 4 }}>
                       <span style={{ fontSize: 12, color: "#c4952a", flexShrink: 0, marginTop: 1 }}>◆</span>
                       <span style={{ fontSize: 13, color: "#e8d5a3", flex: 1, lineHeight: 1.4 }}>{note}</span>
-                      {!locked && (
+                      {(!locked || isAdmin || isMonarch) && (
                         <button onClick={() => removeNote(selected, i)}
                           style={{ background: "none", border: "none", color: "#5c3d11", cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1, flexShrink: 0 }}>✕</button>
                       )}
@@ -1176,7 +1178,7 @@ export default function BattleMap() {
                   ))}
                 </div>
 
-                {!locked && (
+                {!!userProfile && (
                   <div style={{ display: "flex", gap: 6 }}>
                     <input
                       className="note-input"
