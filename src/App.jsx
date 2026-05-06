@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { auth, getOrCreateUserProfile, subscribeToTokens, saveTokens, deleteToken } from "./firebase";
+import { auth, getOrCreateUserProfile, subscribeToTokens, saveTokens, deleteToken, getAllUsers } from "./firebase";
 import AuthModal from "./AuthModal";
 import AdminPanel from "./AdminPanel";
 
@@ -80,6 +80,7 @@ export default function BattleMap() {
   const [authReady,   setAuthReady]   = useState(false);   // true once onAuthStateChanged fires
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [userProfile,  setUserProfile]  = useState(null);  // { uid, displayName, role, … }
+  const [userProfiles, setUserProfiles] = useState({});    // uid → displayName
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [adminMode,     setAdminMode]     = useState(false);
 
@@ -172,6 +173,15 @@ export default function BattleMap() {
       }
     }
   }, [userProfile]);
+
+  useEffect(() => {
+    if (!isPlayer) return;
+    getAllUsers().then(users => {
+      const map = {};
+      users.forEach(u => { map[u.uid] = u.displayName; });
+      setUserProfiles(map);
+    });
+  }, [isPlayer]);
 
   useEffect(() => {
     const el = canvasRef.current;
@@ -986,7 +996,7 @@ export default function BattleMap() {
                           tokenTouchRef.current = { id: token.id };
                         }
                       }}
-                      title={token.notes?.join(" | ") || `${faction.label}${token.nation ? ` (${NATIONS[token.nation]?.label ?? token.nation})` : ""}${locked ? " — not yours" : ""}`}
+                      title={token.notes?.join(" | ") || `${token.faction === "player" && token.ownerId && userProfiles[token.ownerId] ? userProfiles[token.ownerId] : faction.label}${token.nation ? ` (${NATIONS[token.nation]?.label ?? token.nation})` : ""}${locked ? " — not yours" : ""}`}
                       className={locked ? "token-locked" : ""}
                       style={{
                         position: "absolute",
@@ -1111,7 +1121,7 @@ export default function BattleMap() {
                       : selectedToken.faction === "enemy"  ? "#e8a0a0"
                       : "#e8a0d2",
                   }}>
-                    {FACTIONS[selectedToken.faction].icon} {FACTIONS[selectedToken.faction].label}
+                    {FACTIONS[selectedToken.faction].icon} {selectedToken.faction === "player" && selectedToken.ownerId && userProfiles[selectedToken.ownerId] ? userProfiles[selectedToken.ownerId] : FACTIONS[selectedToken.faction].label}
                     {selectedToken.faction === "player" && selectedToken.nation && NATIONS[selectedToken.nation] && (
                       <span style={{ fontSize: 12, fontWeight: 400, opacity: 0.8 }}> — {NATIONS[selectedToken.nation].label}</span>
                     )}
