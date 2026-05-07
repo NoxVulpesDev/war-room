@@ -46,8 +46,9 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
 
   if (!arrows.length) return null;
 
-  const factions = [...new Set(arrows.map(a => a.faction))];
-  const strokeW  = Math.max(2, 2.5 * zoom);
+  const factions  = [...new Set(arrows.map(a => a.faction))];
+  const strokeW   = Math.max(2, 2 * zoom);
+  const outlineW  = strokeW + 3; // ~1.5px dark ring on each side
 
   return (
     <svg
@@ -56,21 +57,21 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
     >
       <defs>
         <filter id="mv-shadow" x="-40%" y="-40%" width="180%" height="180%">
-          <feDropShadow dx="0" dy="1" stdDeviation="3" floodColor="#000000" floodOpacity="0.9" />
+          <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000000" floodOpacity="0.85" />
         </filter>
 
+        {/* Outline arrowhead (dark) */}
+        <marker id="mv-arrow-outline" viewBox="0 0 10 6" refX="9" refY="3"
+          markerWidth="6" markerHeight="5" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L10,3 L0,6 Z" fill="#0d0600" />
+        </marker>
+
+        {/* Coloured arrowheads per faction */}
         {factions.map(f => {
           const color = ARROW_COLOR[f] ?? ARROW_COLOR.player;
           return (
-            <marker
-              key={f}
-              id={`mv-arrow-${f}`}
-              viewBox="0 0 10 6"
-              refX="9" refY="3"
-              markerWidth="6" markerHeight="5"
-              orient="auto"
-              markerUnits="strokeWidth"
-            >
+            <marker key={f} id={`mv-arrow-${f}`} viewBox="0 0 10 6" refX="9" refY="3"
+              markerWidth="6" markerHeight="5" orient="auto" markerUnits="strokeWidth">
               <path d="M0,0 L10,3 L0,6 Z" fill={color} />
             </marker>
           );
@@ -78,31 +79,20 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
       </defs>
 
       <g filter="url(#mv-shadow)">
-        {/* Dark outline pass — wide solid stroke for contrast on any map background */}
+        {/* Outline pass — solid, just a few px wider than the colour pass */}
         {arrows.map(({ id, x1, y1, x2, y2 }) => (
-          <line
-            key={`out-${id}`}
-            x1={x1} y1={y1} x2={x2} y2={y2}
-            stroke="#0d0600"
-            strokeWidth={strokeW * 3.5}
-            strokeOpacity="0.7"
-            strokeLinecap="round"
-          />
+          <line key={`out-${id}`} x1={x1} y1={y1} x2={x2} y2={y2}
+            stroke="#0d0600" strokeWidth={outlineW}
+            strokeLinecap="round" markerEnd="url(#mv-arrow-outline)" />
         ))}
 
-        {/* Colour pass — faction-coloured dashed line with arrowhead */}
+        {/* Colour pass — solid, sits inside the outline ring */}
         {arrows.map(({ id, x1, y1, x2, y2, faction }) => {
           const color = ARROW_COLOR[faction] ?? ARROW_COLOR.player;
           return (
-            <line
-              key={id}
-              x1={x1} y1={y1} x2={x2} y2={y2}
-              stroke={color}
-              strokeWidth={strokeW}
-              strokeOpacity="0.95"
-              strokeDasharray={`${5 * zoom} ${3 * zoom}`}
-              markerEnd={`url(#mv-arrow-${faction})`}
-            />
+            <line key={id} x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={color} strokeWidth={strokeW}
+              strokeLinecap="round" markerEnd={`url(#mv-arrow-${faction})`} />
           );
         })}
       </g>
