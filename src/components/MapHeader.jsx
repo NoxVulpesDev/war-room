@@ -127,23 +127,8 @@ export default function MapHeader({
         })()}
       </div>
 
-      {/* ── User / session area (right-side) ─────────────────────────────── */}
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-        {/* Save status pill */}
-        {saveStatus !== "idle" && (
-          <span style={{
-            fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            color: saveStatus === "saved" ? "#a8d5b5" : saveStatus === "error" ? "#e05050" : "#8b7040",
-            padding: "3px 8px", borderRadius: 3,
-            background: saveStatus === "saved" ? "#1a3d26" : saveStatus === "error" ? "#2d0a0a" : "#1f1005",
-            border: `1px solid ${saveStatus === "saved" ? "#2d6e3e" : saveStatus === "error" ? "#5c1a1a" : "#3a2209"}`,
-            transition: "all 0.3s",
-          }}>
-            {saveStatus === "saving" ? "⟳ Saving…" : saveStatus === "saved" ? "✓ Saved" : "✕ Save error"}
-          </span>
-        )}
-
+      {/* ── User / session area ───────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {/* Role badge */}
         {userProfile && (
           <div style={{
@@ -264,6 +249,22 @@ export default function MapHeader({
             ⟵ Depart
           </button>
         )}
+
+        {/* Save status pill — always in DOM to prevent layout shift; pinned right */}
+        <span style={{
+          marginLeft: "auto",
+          fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: saveStatus === "saved" ? "#a8d5b5" : saveStatus === "error" ? "#e05050" : "#8b7040",
+          padding: "3px 8px", borderRadius: 3,
+          background: saveStatus === "saved" ? "#1a3d26" : saveStatus === "error" ? "#2d0a0a" : "#1f1005",
+          border: `1px solid ${saveStatus === "saved" ? "#2d6e3e" : saveStatus === "error" ? "#5c1a1a" : "#3a2209"}`,
+          transition: "color 0.3s, background 0.3s, border-color 0.3s",
+          minWidth: 88, textAlign: "center",
+          visibility: saveStatus === "idle" ? "hidden" : "visible",
+        }}>
+          {saveStatus === "saving" ? "⟳ Saving…" : saveStatus === "saved" ? "✓ Saved" : "✕ Save error"}
+        </span>
       </div>
 
       {showHelp && (
