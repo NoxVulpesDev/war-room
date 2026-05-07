@@ -80,6 +80,9 @@ war-council/
 │   ├── favicon.svg
 │   └── icons.svg
 │
+├── firestore.rules       Firestore security rules (source of truth — deploy with npm run deploy:rules)
+├── firebase.json         Firebase CLI config (points to firestore.rules)
+├── .firebaserc           Firebase project alias (war-room-81e5c)
 ├── index.html            Vite HTML entry
 ├── vite.config.js        Vite config — sets base path to /war-room/
 ├── eslint.config.js      ESLint flat config
@@ -115,34 +118,15 @@ The dev server starts at `http://localhost:5173` (default Vite port).
 3. Create a **Firestore Database** (start in test mode, then apply security rules)
 4. Copy your project's SDK config into `.env.local` (see [Environment Variables](#environment-variables))
 
-### Suggested Firestore security rules (production)
+### Firestore security rules
 
+Rules are version-controlled in `firestore.rules` at the project root. Deploy them with:
+
+```bash
+npm run deploy:rules
 ```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == uid ||
-                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
-    }
-    match /sessions/{sessionId}/tokens/{tokenId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
-    match /sessions/{sessionId}/history/{entryId} {
-      allow read:   if request.auth != null;
-      allow create: if request.auth != null;
-      allow delete: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
-    }
-    match /config/global {
-      allow read: if request.auth != null;
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
-    }
-  }
-}
-```
+
+Key enforcements: players cannot modify their own `role` or `maxTokens`; players can only create/update tokens they own and cannot place enemy faction tokens; `config/global` is admin-write only. See `firestore.rules` for the full ruleset.
 
 ---
 
@@ -358,7 +342,7 @@ Composes the three hooks, owns local UI state (selected token, mode, placing fac
 
 ### `src/components/MapHeader.jsx`
 
-Top toolbar. Receives auth state, map state, permission flags, and handler callbacks as props. Imports `signOut` and `auth` from `firebase.js` directly.
+Top toolbar. Receives auth state, map state, permission flags, and handler callbacks as props. Imports `signOut` and `auth` from `firebase.js` directly. Accepts a `tokenCap` prop (the effective unit cap after applying the global default fallback) and displays a live `owned/cap units` indicator when a cap is active.
 
 ### `src/components/TokenLayer.jsx`
 
@@ -622,13 +606,16 @@ Decorative SVG knotwork elements appear in `AuthModal.jsx` and as corner ornamen
 ## Build & Deployment
 
 ```bash
-npm run dev       # Vite dev server with HMR at localhost:5173
-npm run build     # Production build to /dist
-npm run preview   # Serve /dist locally to verify the build
-npm run deploy    # npm run build && gh-pages -d dist
+npm run dev            # Vite dev server with HMR at localhost:5173
+npm run build          # Production build to /dist
+npm run preview        # Serve /dist locally to verify the build
+npm run deploy         # npm run build && gh-pages -d dist
+npm run deploy:rules   # Push firestore.rules to Firebase (requires firebase login)
 ```
 
 `npm run deploy` pushes the `dist/` folder to the `gh-pages` branch of the repository. GitHub Pages serves that branch at the configured path.
+
+`npm run deploy:rules` deploys `firestore.rules` to Firestore via the Firebase CLI (`firebase-tools` must be installed globally and you must be logged in via `firebase login`).
 
 The `base: '/war-room/'` in `vite.config.js` must match the GitHub Pages subpath. If deploying to a custom domain or a different repository path, update `base` accordingly — otherwise all asset URLs will return 404.
 
