@@ -46,12 +46,16 @@ export default function BattleMap() {
   const [placingFaction, setPlacingFaction] = useState("player");
   const [mode,         setMode]         = useState("place");
   const [noteInput,    setNoteInput]    = useState("");
-  const [dragId,       setDragId]       = useState(null);
+  const [dragPos,      setDragPos]      = useState(null); // { id, screenX, screenY } during live drag
+  const tokenDragRef = useRef(null); // { id } while mouse button is held
+  const tokensRef    = useRef(tokens);
   const [showPanel,         setShowPanel]         = useState(false);
   const [showAdminPanel,    setShowAdminPanel]    = useState(false);
   const [tokenLimitWarning, setTokenLimitWarning] = useState(false);
   const [defaultMaxTokens,  setDefaultMaxTokens]  = useState(null);
   const [splitCount,   setSplitCount]   = useState(1);
+
+  useEffect(() => { tokensRef.current = tokens; }, [tokens]);
 
   const mapImgRef = useRef(null);
 
@@ -195,55 +199,79 @@ export default function BattleMap() {
     }
   }, [isReplaying, mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdminMode, selectedMap, setTokenLimitWarning, defaultMaxTokens]);
 
-  const handleDragStart = (e, id) => {
-    if (mode !== "move") return;
-    const token = tokens.find(t => t.id === id);
-    if (token && !canMutateToken(token)) return;
-    setDragId(id);
-    e.dataTransfer.effectAllowed = "move";
-    const ghost = document.createElement("div");
-    ghost.style.opacity = "0";
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
-    setTimeout(() => document.body.removeChild(ghost), 0);
-  };
-
-  const handleCanvasDrop = useCallback((e) => {
+  const handleTokenMouseDown = useCallback((e, id) => {
+    if (isReplaying || mode !== "move") return;
+    const token = tokensRef.current.find(t => t.id === id);
+    if (!token || !canMutateToken(token)) return;
+    e.stopPropagation();
     e.preventDefault();
-    if (isReplaying) return;
-    if (!dragId) return;
     const mb = getMapScreenBounds(mapImgRef.current);
-    if (!mb) return;
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    // Record where inside the token the user grabbed (viewport coords), so the token
+    // doesn't snap its center to the cursor but follows the exact grab point.
+    const grabX = mb ? e.clientX - (mb.left + token.x * mb.width)  : 0;
+    const grabY = mb ? e.clientY - (mb.top  + token.y * mb.height) : 0;
+    tokenDragRef.current = { id, grabX, grabY };
+    const cLeft = canvasRect?.left ?? 0;
+    const cTop  = canvasRect?.top  ?? 0;
+    setDragPos({ id, screenX: e.clientX - grabX - cLeft, screenY: e.clientY - grabY - cTop });
+  }, [isReplaying, mode, canMutateToken]);
 
-    const x = (e.clientX - mb.left) / mb.width;
-    const y = (e.clientY - mb.top)  / mb.height;
+  useEffect(() => {
+    const onMouseMove = (e) => {
+      if (!tokenDragRef.current) return;
+      const { id, grabX, grabY } = tokenDragRef.current;
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      const cLeft = canvasRect?.left ?? 0;
+      const cTop  = canvasRect?.top  ?? 0;
+      setDragPos({ id, screenX: e.clientX - grabX - cLeft, screenY: e.clientY - grabY - cTop });
+    };
+    const onMouseUp = (e) => {
+      if (!tokenDragRef.current) return;
+      const { id: draggedId, grabX, grabY } = tokenDragRef.current;
+      tokenDragRef.current = null;
+      setDragPos(null);
 
-    const dragged = tokens.find(t => t.id === dragId);
-    if (!dragged) return;
+      const mb = getMapScreenBounds(mapImgRef.current);
+      if (!mb) return;
 
-    const screenThreshold = MERGE_THRESHOLD * zoomRef.current;
-    const mergeTarget = findMergeTarget(tokens, mb, e.clientX, e.clientY, dragged.faction, screenThreshold, dragId);
+      // Adjust drop position by the same grab offset so the token lands where it was dropped
+      const x = (e.clientX - grabX - mb.left) / mb.width;
+      const y = (e.clientY - grabY - mb.top)  / mb.height;
 
-    if (mergeTarget) {
-      const draggedMembers = dragged.members?.length
-        ? dragged.members
-        : [{ id: dragged.id + "_m0", name: dragged.name ?? '', count: dragged.count, notes: dragged.notes ?? [], ownerId: dragged.ownerId, nation: dragged.nation }];
-      setTokensAndSave(prev => prev
-        .filter(t => t.id !== dragId)
-        .map(t => {
-          if (t.id !== mergeTarget.id) return t;
-          const targetMembers = t.members?.length
-            ? t.members
-            : [{ id: t.id + "_m0", name: t.name ?? '', count: t.count, notes: t.notes ?? [], ownerId: t.ownerId, nation: t.nation }];
-          return { ...t, count: t.count + dragged.count, members: [...targetMembers, ...draggedMembers] };
-        })
-      , { actionType: "merge", description: `Merged ${dragged.faction} troops` });
-      setSelected(mergeTarget.id);
-    } else {
-      setTokensAndSave(prev => prev.map(t => t.id === dragId ? { ...t, x, y } : t), { actionType: "move", description: "Moved troops" });
-    }
-    setDragId(null);
-  }, [isReplaying, dragId, tokens, setTokensAndSave]);
+      const dragged = tokensRef.current.find(t => t.id === draggedId);
+      if (!dragged) return;
+
+      const screenThreshold = MERGE_THRESHOLD * zoomRef.current;
+      const mergeTarget = findMergeTarget(tokensRef.current, mb, e.clientX - grabX, e.clientY - grabY, dragged.faction, screenThreshold, draggedId);
+
+      if (mergeTarget) {
+        const draggedMembers = dragged.members?.length
+          ? dragged.members
+          : [{ id: dragged.id + "_m0", name: dragged.name ?? '', count: dragged.count, notes: dragged.notes ?? [], ownerId: dragged.ownerId, nation: dragged.nation }];
+        setTokensAndSave(prev => prev
+          .filter(t => t.id !== draggedId)
+          .map(t => {
+            if (t.id !== mergeTarget.id) return t;
+            const targetMembers = t.members?.length
+              ? t.members
+              : [{ id: t.id + "_m0", name: t.name ?? '', count: t.count, notes: t.notes ?? [], ownerId: t.ownerId, nation: t.nation }];
+            return { ...t, count: t.count + dragged.count, members: [...targetMembers, ...draggedMembers] };
+          })
+        , { actionType: "merge", description: `Merged ${dragged.faction} troops` });
+        setSelected(mergeTarget.id);
+      } else {
+        setTokensAndSave(prev => prev.map(t => t.id === draggedId ? { ...t, x, y } : t), { actionType: "move", description: "Moved troops" });
+      }
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup",   onMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup",   onMouseUp);
+    };
+  }, [setTokensAndSave, zoomRef]);
 
   const handleTokenClick = (id) => {
     if (isReplaying) return;
@@ -487,8 +515,6 @@ export default function BattleMap() {
           onClick={handleCanvasClick}
           onMouseDown={handleMouseDown}
           onTouchStart={handleCanvasTouchStart}
-          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
-          onDrop={handleCanvasDrop}
           onContextMenu={(e) => e.preventDefault()}
         >
           {/* No-map placeholder */}
@@ -546,7 +572,8 @@ export default function BattleMap() {
             canMutateToken={canMutateToken} userProfiles={userProfiles}
             tokenTouchRef={tokenTouchRef}
             tokenLimitWarning={tokenLimitWarning} onForeignMap={onForeignMap}
-            handleDragStart={handleDragStart} handleTokenClick={handleTokenClick}
+            dragPos={dragPos}
+            handleTokenMouseDown={handleTokenMouseDown} handleTokenClick={handleTokenClick}
           />
 
           {/* Replay banner */}

@@ -6,7 +6,8 @@ export default function TokenLayer({
   canMutateToken, userProfiles,
   tokenTouchRef,
   tokenLimitWarning, onForeignMap,
-  handleDragStart, handleTokenClick,
+  dragPos,
+  handleTokenMouseDown, handleTokenClick,
 }) {
   if (!layoutBounds) return null;
 
@@ -27,13 +28,13 @@ export default function TokenLayer({
             ? NATIONS[token.nation]
             : null;
           const tokenColor  = nationStyle ?? faction;
-          const screenX     = mapScreenLeft + token.x * mapScreenW;
-          const screenY     = mapScreenTop  + token.y * mapScreenH;
+          const isDragging  = dragPos?.id === token.id;
+          const screenX     = isDragging ? dragPos.screenX : mapScreenLeft + token.x * mapScreenW;
+          const screenY     = isDragging ? dragPos.screenY : mapScreenTop  + token.y * mapScreenH;
           return (
             <div
               key={token.id}
-              draggable={mode === "move" && !locked}
-              onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, token.id); }}
+              onMouseDown={(e) => { handleTokenMouseDown(e, token.id); }}
               onClick={(e) => { e.stopPropagation(); handleTokenClick(token.id); }}
               onTouchStart={(e) => {
                 if (mode === "move" && !locked) {
@@ -57,13 +58,14 @@ export default function TokenLayer({
                   : `0 ${2 * zoom}px ${8 * zoom}px #0006`,
                 display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
                 cursor: locked ? "not-allowed"
+                  : isDragging ? "grabbing"
                   : mode === "move" ? "grab"
                   : mode === "delete" ? "not-allowed"
                   : "pointer",
                 userSelect: "none",
                 pointerEvents: "all",
-                zIndex: selected === token.id ? 20 : 10,
-                transition: "box-shadow 0.15s, border-color 0.15s",
+                zIndex: isDragging ? 30 : selected === token.id ? 20 : 10,
+                transition: isDragging ? "none" : "box-shadow 0.15s, border-color 0.15s",
                 fontFamily: "'Cinzel', serif",
               }}
             >
