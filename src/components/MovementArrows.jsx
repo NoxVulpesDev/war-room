@@ -1,10 +1,18 @@
-import { TOKEN_RADIUS } from "../constants";
+import { TOKEN_RADIUS, FACTIONS, NATIONS } from "../constants";
 
 const ARROW_COLOR = {
   player:    "#a8d5b5",
   enemy:     "#cccccc",
   contested: "#e8a0d2",
 };
+
+function ghostColors(faction, nation) {
+  if (faction === "player" && nation && NATIONS[nation]) {
+    return { fill: NATIONS[nation].color, stroke: NATIONS[nation].border };
+  }
+  const f = FACTIONS[faction] ?? FACTIONS.player;
+  return { fill: f.color, stroke: f.border };
+}
 
 export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBounds, pan, zoom }) {
   if (!layoutBounds || !prevSnapshot || !currSnapshot) return null;
@@ -36,18 +44,22 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
 
     arrows.push({
       id,
+      ghostX: x1raw,
+      ghostY: y1raw,
       x1: x1raw + dx * startRatio,
       y1: y1raw + dy * startRatio,
       x2: x1raw + dx * endRatio,
       y2: y1raw + dy * endRatio,
       faction: curr.faction ?? "player",
+      nation:  prev.nation  ?? null,
     });
   });
 
   if (!arrows.length) return null;
 
-  const factions = [...new Set(arrows.map(a => a.faction))];
-  const strokeW  = Math.max(3, 3 * zoom);
+  const factions  = [...new Set(arrows.map(a => a.faction))];
+  const strokeW   = Math.max(3, 3 * zoom);
+  const ghostDash = `${3 * zoom} ${2 * zoom}`;
 
   return (
     <svg
@@ -67,6 +79,21 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
         })}
       </defs>
 
+      {/* Ghost circles at previous positions — rendered first so arrows sit on top */}
+      {arrows.map(({ id, ghostX, ghostY, faction, nation }) => {
+        const { fill, stroke } = ghostColors(faction, nation);
+        return (
+          <circle key={`ghost-${id}`}
+            cx={ghostX} cy={ghostY} r={r}
+            fill={fill} fillOpacity="0.25"
+            stroke={stroke} strokeOpacity="0.7"
+            strokeWidth={Math.max(1, 1.5 * zoom)}
+            strokeDasharray={ghostDash}
+          />
+        );
+      })}
+
+      {/* Movement arrows */}
       {arrows.map(({ id, x1, y1, x2, y2, faction }) => {
         const color = ARROW_COLOR[faction] ?? ARROW_COLOR.player;
         return (
