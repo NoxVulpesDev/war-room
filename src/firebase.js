@@ -117,6 +117,15 @@ export async function updateGlobalSettings(updates) {
   await setDoc(doc(db, "config", "global"), updates, { merge: true });
 }
 
+export async function clearHistory(sessionId) {
+  const snap = await getDocs(collection(db, "sessions", sessionId, "history"));
+  if (snap.empty) return 0;
+  const batch = writeBatch(db);
+  snap.docs.forEach(d => batch.delete(d.ref));
+  await batch.commit();
+  return snap.size;
+}
+
 export async function getHistory(sessionId) {
   const q = query(
     collection(db, "sessions", sessionId, "history"),

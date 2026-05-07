@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { getAllUsers, updateUserProfile, getGlobalSettings, updateGlobalSettings } from "./firebase";
+import { getAllUsers, updateUserProfile, getGlobalSettings, updateGlobalSettings, clearHistory } from "./firebase";
+import { MAPS } from "./constants";
 
 const NATIONS_LIST = [
   { value: "erin",      label: "Erin" },
@@ -17,6 +18,11 @@ export default function AdminPanel({ onClose }) {
   const [globalSettings, setGlobalSettings] = useState({ defaultMaxTokens: "" });
   const [globalSaving,  setGlobalSaving]  = useState(false);
   const [globalError,   setGlobalError]   = useState("");
+
+  const [historyMap,    setHistoryMap]    = useState(MAPS[0].id);
+  const [historySaving, setHistorySaving] = useState(false);
+  const [historyMsg,    setHistoryMsg]    = useState("");
+  const [historyError,  setHistoryError]  = useState("");
 
   useEffect(() => {
     Promise.all([getAllUsers(), getGlobalSettings()])
@@ -62,6 +68,22 @@ export default function AdminPanel({ onClose }) {
       setErrors(prev => ({ ...prev, [uid]: err.message }));
     } finally {
       setSaving(prev => ({ ...prev, [uid]: false }));
+    }
+  };
+
+  const handleClearHistory = async () => {
+    const mapLabel = MAPS.find(m => m.id === historyMap)?.label ?? historyMap;
+    if (!window.confirm(`Delete all history for the ${mapLabel} map? This cannot be undone.`)) return;
+    setHistorySaving(true);
+    setHistoryMsg("");
+    setHistoryError("");
+    try {
+      const count = await clearHistory(historyMap);
+      setHistoryMsg(`Cleared ${count} entr${count === 1 ? "y" : "ies"} from ${mapLabel}.`);
+    } catch (err) {
+      setHistoryError(err.message);
+    } finally {
+      setHistorySaving(false);
     }
   };
 
@@ -171,6 +193,41 @@ export default function AdminPanel({ onClose }) {
               <span style={{ fontSize: 11, color: "#5c4a28" }}>Leave blank for no limit</span>
             </div>
             {globalError && <p style={{ margin: "8px 0 0", fontSize: 11, color: "#e05050" }}>{globalError}</p>}
+          </div>
+
+          {/* History Management */}
+          <div style={{ marginBottom: 28, padding: "14px 16px", background: "#2c1a06", borderRadius: 4, border: "1px solid #3a2209" }}>
+            <h3 style={{ fontFamily: "'Cinzel', serif", fontSize: 11, fontWeight: 700, color: "#c4952a", margin: "0 0 12px", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+              History Management
+            </h3>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <label style={{ fontSize: 12, color: "#8b7040", fontFamily: "'Cinzel', serif", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
+                Map:
+              </label>
+              <select
+                style={{ ...inp, width: "auto", cursor: "pointer" }}
+                value={historyMap}
+                onChange={e => { setHistoryMap(e.target.value); setHistoryMsg(""); setHistoryError(""); }}
+              >
+                {MAPS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+              <button
+                onClick={handleClearHistory}
+                disabled={historySaving}
+                style={{
+                  ...btn,
+                  border: "1px solid #8b1a1a",
+                  background: "#2d0a0a",
+                  color: "#e05050",
+                  opacity: historySaving ? 0.6 : 1,
+                  cursor: historySaving ? "wait" : "pointer",
+                }}
+              >
+                {historySaving ? "Clearing…" : "✕ Clear History"}
+              </button>
+              {historyMsg && <span style={{ fontSize: 11, color: "#a8d5b5" }}>{historyMsg}</span>}
+            </div>
+            {historyError && <p style={{ margin: "8px 0 0", fontSize: 11, color: "#e05050" }}>{historyError}</p>}
           </div>
 
           {/* Users */}
