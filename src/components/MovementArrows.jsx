@@ -52,13 +52,10 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
   return (
     <svg
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9 }}
+      overflow="visible"
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
-        <filter id="mv-shadow" x="-40%" y="-40%" width="180%" height="180%">
-          <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000000" floodOpacity="0.9" />
-        </filter>
-
         {factions.map(f => {
           const color = ARROW_COLOR[f] ?? ARROW_COLOR.player;
           return (
@@ -70,16 +67,14 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
         })}
       </defs>
 
-      <g filter="url(#mv-shadow)">
-        {arrows.map(({ id, x1, y1, x2, y2, faction }) => {
-          const color = ARROW_COLOR[faction] ?? ARROW_COLOR.player;
-          return (
-            <line key={id} x1={x1} y1={y1} x2={x2} y2={y2}
-              stroke={color} strokeWidth={strokeW}
-              strokeLinecap="round" markerEnd={`url(#mv-arrow-${faction})`} />
-          );
-        })}
-      </g>
+      {arrows.map(({ id, x1, y1, x2, y2, faction }) => {
+        const color = ARROW_COLOR[faction] ?? ARROW_COLOR.player;
+        return (
+          <line key={id} x1={x1} y1={y1} x2={x2} y2={y2}
+            stroke={color} strokeWidth={strokeW}
+            strokeLinecap="round" markerEnd={`url(#mv-arrow-${faction})`} />
+        );
+      })}
     </svg>
   );
 }
