@@ -1,9 +1,8 @@
 import { TOKEN_RADIUS } from "../constants";
 
-// Faction border colours — match FACTIONS in constants.js
 const ARROW_COLOR = {
   player:    "#a8d5b5",
-  enemy:     "#aaaaaa",
+  enemy:     "#cccccc",
   contested: "#e8a0d2",
 };
 
@@ -30,9 +29,8 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
     const dx  = x2raw - x1raw;
     const dy  = y2raw - y1raw;
     const len = Math.hypot(dx, dy);
-    if (len < r * 2.5) return; // too close to draw a meaningful arrow
+    if (len < r * 2.5) return;
 
-    // Shorten both ends so the line sits between token edges, not centres
     const startRatio = r / len;
     const endRatio   = (len - r) / len;
 
@@ -48,8 +46,8 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
 
   if (!arrows.length) return null;
 
-  const factions   = [...new Set(arrows.map(a => a.faction))];
-  const strokeW    = Math.max(1, 1.5 * zoom);
+  const factions = [...new Set(arrows.map(a => a.faction))];
+  const strokeW  = Math.max(2, 2.5 * zoom);
 
   return (
     <svg
@@ -57,6 +55,10 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
+        <filter id="mv-shadow" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="1" stdDeviation="3" floodColor="#000000" floodOpacity="0.9" />
+        </filter>
+
         {factions.map(f => {
           const color = ARROW_COLOR[f] ?? ARROW_COLOR.player;
           return (
@@ -65,30 +67,45 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
               id={`mv-arrow-${f}`}
               viewBox="0 0 10 6"
               refX="9" refY="3"
-              markerWidth="5" markerHeight="4"
+              markerWidth="6" markerHeight="5"
               orient="auto"
               markerUnits="strokeWidth"
             >
-              <path d="M0,0 L10,3 L0,6 Z" fill={color} fillOpacity="0.9" />
+              <path d="M0,0 L10,3 L0,6 Z" fill={color} />
             </marker>
           );
         })}
       </defs>
 
-      {arrows.map(({ id, x1, y1, x2, y2, faction }) => {
-        const color = ARROW_COLOR[faction] ?? ARROW_COLOR.player;
-        return (
+      <g filter="url(#mv-shadow)">
+        {/* Dark outline pass — wide solid stroke for contrast on any map background */}
+        {arrows.map(({ id, x1, y1, x2, y2 }) => (
           <line
-            key={id}
+            key={`out-${id}`}
             x1={x1} y1={y1} x2={x2} y2={y2}
-            stroke={color}
-            strokeWidth={strokeW}
-            strokeOpacity="0.75"
-            strokeDasharray={`${5 * zoom} ${3 * zoom}`}
-            markerEnd={`url(#mv-arrow-${faction})`}
+            stroke="#0d0600"
+            strokeWidth={strokeW * 3.5}
+            strokeOpacity="0.7"
+            strokeLinecap="round"
           />
-        );
-      })}
+        ))}
+
+        {/* Colour pass — faction-coloured dashed line with arrowhead */}
+        {arrows.map(({ id, x1, y1, x2, y2, faction }) => {
+          const color = ARROW_COLOR[faction] ?? ARROW_COLOR.player;
+          return (
+            <line
+              key={id}
+              x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={color}
+              strokeWidth={strokeW}
+              strokeOpacity="0.95"
+              strokeDasharray={`${5 * zoom} ${3 * zoom}`}
+              markerEnd={`url(#mv-arrow-${faction})`}
+            />
+          );
+        })}
+      </g>
     </svg>
   );
 }
