@@ -48,7 +48,7 @@ There is no CSS preprocessor, no Redux, no router, and no component library. Fir
 war-council/
 ├── src/
 │   ├── main.jsx                Entry point — renders <App /> into #root
-│   ├── App.jsx                 Top-level component (~440 lines): composes hooks,
+│   ├── App.jsx                 Top-level component (~640 lines): composes hooks,
 │   │                           owns token interaction handlers, renders layout
 │   ├── AuthModal.jsx           Login / signup modal with nation selection
 │   ├── AdminPanel.jsx          Admin UI for user management and global settings
@@ -172,8 +172,8 @@ App.jsx (BattleMap)
   │     ├── wheel zoom, mouse pan, pinch zoom, touch token drag
   │     └── adjustZoom(), resetView()
   │
-  ├── Token interaction handlers (handleCanvasClick, handleDragStart,
-  │   handleCanvasDrop, handleTokenClick, addNote, removeNote, handleSplit)
+  ├── Token interaction handlers (handleCanvasClick, handleTokenMouseDown,
+  │   handleTokenClick, addNote, removeNote, handleSplit)
   │
   ├── <MapHeader />      — toolbar
   ├── <TokenLayer />     — token rendering + banners
@@ -649,6 +649,8 @@ The `base: '/war-room/'` in `vite.config.js` must match the GitHub Pages subpath
 **`onForeignMap`** is derived state, not stored in Firestore. It is recomputed whenever `selectedMap` or `userProfile.nation` changes.
 
 **Token touch drag is coordinated across two modules.** `TokenLayer` sets `tokenTouchRef.current` when a touch begins on a token. `useMapZoomPan` checks that ref in its document-level touch handlers. Neither module knows about the other — the ref is the shared channel.
+
+**Mouse token drag is pointer-based, not HTML5 drag-and-drop.** `TokenLayer` fires `handleTokenMouseDown` on `mousedown`; `App.jsx` records a grab offset (cursor-to-token-center in viewport coords) in `tokenDragRef` and updates `dragPos` state via document-level `mousemove`, which `TokenLayer` uses to render the token at the live cursor position. On `mouseup` the final normalised coordinates are committed via `setTokensAndSave`. The grab offset ensures the token stays pinned at the exact click point rather than snapping its centre to the cursor.
 
 ---
 

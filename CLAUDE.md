@@ -20,7 +20,7 @@ npm run deploy     # Build + deploy to GitHub Pages at /war-room/
 ```
 src/
   main.jsx                     Entry point
-  App.jsx                      Top-level component (~580 lines): composes hooks,
+  App.jsx                      Top-level component (~640 lines): composes hooks,
                                owns token interaction handlers, renders layout
   AuthModal.jsx                Login/signup modal with nation selection
   AdminPanel.jsx               Admin UI: user management, global settings
@@ -54,6 +54,7 @@ src/
 2. `App.jsx` — `useEffect` watches `userProfile.nation`; auto-selects home map on first login
 3. `useFirestoreTokenSync` — `subscribeToTokens(sessionId)` real-time listener; local mutations go through `setTokensAndSave()` → 1200ms debounce → `saveTokens()` batch write
 4. `useMapZoomPan` — owns all zoom/pan/gesture state; exposes `zoomRef`/`dragPanRef` so `App.jsx` canvas handlers can read current values without stale closures
+5. Token drag (move mode) — pointer-based, not HTML5 drag-and-drop. `handleTokenMouseDown` records a grab offset (cursor→token-center in viewport coords) and sets `tokenDragRef`; document-level `mousemove` updates `dragPos` state (canvas-relative) so the token follows the cursor live; `mouseup` commits the final position via `setTokensAndSave`. `tokensRef` keeps a current copy of tokens so the mouseup closure never goes stale.
 
 ### Firestore schema
 
