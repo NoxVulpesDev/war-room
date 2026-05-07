@@ -12,6 +12,7 @@ export default function MapHeader({
   zoom, adjustZoom, resetView,
   onOpenAdminPanel,
   onOpenTimeline, isReplaying,
+  tokenCap,
 }) {
   return (
     <header style={{
@@ -104,9 +105,9 @@ export default function MapHeader({
           );
         })}
         {/* Per-user unit cap indicator */}
-        {!isAdminMode && userProfile?.maxTokens != null && selectedMap && (() => {
+        {!isAdminMode && tokenCap != null && selectedMap && (() => {
           const ownedCount = tokens.filter(t => t.ownerId === userProfile.uid).reduce((s, t) => s + t.count, 0);
-          const atLimit = ownedCount >= userProfile.maxTokens;
+          const atLimit = ownedCount >= tokenCap;
           return (
             <div style={{
               display: "flex", alignItems: "center", gap: 5,
@@ -115,7 +116,7 @@ export default function MapHeader({
               border: `1px solid ${atLimit ? "#8b1a1a" : "#3a2209"}`,
             }}>
               <span style={{ fontFamily: "'Cinzel', serif", fontSize: 11, color: atLimit ? "#e05050" : "#8b7040", letterSpacing: "0.04em" }}>
-                {ownedCount}/{userProfile.maxTokens} units
+                {ownedCount}/{tokenCap} units
               </span>
             </div>
           );

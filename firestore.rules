@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+    function authed() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function role() {
+      return userDoc().role;
+    }
+
+    function nation() {
+      return userDoc().nation;
+    }
+
+    function isAdmin() {
+      return authed() && role() == 'admin';
+    }
+
+    function isMonarch() {
+      return authed() && role() == 'monarch';
+    }
+
+    // ── /users/{uid} ─────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if authed() && (request.auth.uid == uid || isAdmin());
+
+      allow create: if authed()
+        && request.auth.uid == uid
+        && request.resource.data.role == 'commander'
+        && request.resource.data.uid == uid;
+
+      allow update: if authed() && (
+        isAdmin() ||
+        (
+          request.auth.uid == uid &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'maxTokens'])
+        )
+      );
+
+      allow delete: if false;
+    }
+
+    // ── /sessions/{sessionId}/history/{entryId} ──────────────────────────────
+    match /sessions/{sessionId}/history/{entryId} {
+      allow read:   if authed();
+      allow create: if authed();
+      allow delete: if authed() && role() == 'admin';
+    }
+
+    // ── /sessions/{sessionId}/tokens/{tokenId} ───────────────────────────────
+    match /sessions/{sessionId}/tokens/{tokenId} {
+      allow read: if authed();
+
+      allow create: if authed() && (
+        isAdmin() ||
+        (
+          request.resource.data.ownerId == request.auth.uid &&
+          request.resource.data.faction != 'enemy'
+        )
+      );
+
+      allow update: if authed() && (
+        isAdmin() ||
+        (
+          resource.data.ownerId == request.auth.uid &&
+          request.resource.data.ownerId == request.auth.uid &&
+          request.resource.data.faction != 'enemy'
+        ) ||
+        (
+          isMonarch() &&
+          resource.data.nation == nation() &&
+          resource.data.faction != 'enemy' &&
+          request.resource.data.ownerId == resource.data.ownerId &&
+          request.resource.data.faction == resource.data.faction &&
+          request.resource.data.nation == resource.data.nation
+        )
+      );
+
+      allow delete: if authed() && (
+        isAdmin() ||
+        resource.data.ownerId == request.auth.uid
+      );
+    }
+
+    // ── /config/global ───────────────────────────────────────────────────────
+    match /config/global {
+      allow read:  if authed();
+      allow write: if isAdmin();
+    }
+  }
+}

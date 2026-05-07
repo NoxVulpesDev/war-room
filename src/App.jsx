@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { deleteToken, donateToken } from "./firebase";
+import { deleteToken, donateToken, getGlobalSettings } from "./firebase";
 import AuthModal from "./AuthModal";
 import AdminPanel from "./AdminPanel";
 import { MAPS, TOKEN_RADIUS, MERGE_THRESHOLD, SAVE_DEBOUNCE } from "./constants";
@@ -50,6 +50,7 @@ export default function BattleMap() {
   const [showPanel,         setShowPanel]         = useState(false);
   const [showAdminPanel,    setShowAdminPanel]    = useState(false);
   const [tokenLimitWarning, setTokenLimitWarning] = useState(false);
+  const [defaultMaxTokens,  setDefaultMaxTokens]  = useState(null);
   const [splitCount,   setSplitCount]   = useState(1);
 
   const mapImgRef = useRef(null);
@@ -60,6 +61,11 @@ export default function BattleMap() {
   useEffect(() => {
     MAPS.forEach(({ src }) => { const img = new Image(); img.src = src; });
   }, []);
+
+  useEffect(() => {
+    if (!authReady) return;
+    getGlobalSettings().then(s => setDefaultMaxTokens(s.defaultMaxTokens ?? null));
+  }, [authReady]);
 
   useEffect(() => {
     if (userProfile?.nation && !selectedMap) {
@@ -92,6 +98,7 @@ export default function BattleMap() {
 
   const displayTokens  = isReplaying && currentSnapshot ? currentSnapshot : tokens;
   const selectedToken  = displayTokens.find(t => t.id === selected);
+  const tokenCap       = userProfile?.maxTokens ?? defaultMaxTokens;
 
   // ─────────────────────────────────────────────────────────────────────────────
   // PERMISSION HELPERS
@@ -143,9 +150,10 @@ export default function BattleMap() {
     if (dragPanRef.current) return;
     if (!canPlaceFaction(placingFaction)) return;
     if (!isAdminMode && selectedMap && userProfile?.nation && selectedMap !== userProfile.nation) return;
-    if (!isAdminMode && userProfile?.maxTokens != null) {
+    const effectiveMax = userProfile?.maxTokens ?? defaultMaxTokens;
+    if (!isAdminMode && effectiveMax != null) {
       const ownedCount = tokens.filter(t => t.ownerId === userProfile.uid).reduce((s, t) => s + t.count, 0);
-      if (ownedCount >= userProfile.maxTokens) {
+      if (ownedCount >= effectiveMax) {
         setTokenLimitWarning(true);
         setTimeout(() => setTokenLimitWarning(false), 2500);
         return;
@@ -185,7 +193,7 @@ export default function BattleMap() {
         members: [{ id: memberId, name: '', count: 1, notes: [], ownerId: userProfile?.uid ?? null, nation: userProfile?.nation ?? null }],
       }], { actionType: "place", description: `Placed ${placingFaction} troops` });
     }
-  }, [isReplaying, mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdminMode, selectedMap, setTokenLimitWarning]);
+  }, [isReplaying, mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdminMode, selectedMap, setTokenLimitWarning, defaultMaxTokens]);
 
   const handleDragStart = (e, id) => {
     if (mode !== "move") return;
@@ -446,6 +454,7 @@ export default function BattleMap() {
         zoom={zoom} adjustZoom={adjustZoom} resetView={resetView}
         onOpenAdminPanel={() => setShowAdminPanel(true)}
         onOpenTimeline={openTimeline} isReplaying={isReplaying}
+        tokenCap={tokenCap}
       />
 
       {/* ── Main layout ─────────────────────────────────────────────────────── */}
