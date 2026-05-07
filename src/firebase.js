@@ -73,7 +73,8 @@ export async function saveTokens(sessionId, tokens, currentUserId = null, isAdmi
   const batch = writeBatch(db);
   tokens.forEach((token) => {
     if (!isAdmin) {
-      const ownedByUser = token.ownerId && token.ownerId === currentUserId;
+      const ownedByUser = (token.ownerId && token.ownerId === currentUserId) ||
+        (token.members?.some(m => m.ownerId === currentUserId) ?? false);
       const monarchCanSave = monarchNation && token.nation === monarchNation && token.faction !== "enemy";
       if (!ownedByUser && !monarchCanSave) return;
     }
