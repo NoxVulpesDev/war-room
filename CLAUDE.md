@@ -101,3 +101,12 @@ Role flags (`isAdmin`, `isMonarch`, `isPlayer`, `isAdminMode`) live in `useAuth.
 ## README maintenance
 
 After any commit that modifies `src/App.jsx`, `src/firebase.js`, `src/AuthModal.jsx`, `src/AdminPanel.jsx`, `src/constants.js`, `src/utils.js`, any file under `src/hooks/`, any file under `src/components/`, `vite.config.js`, or `package.json`, review `README.md` and update any sections that are now out of date. Not every commit requires a README change — only update what has actually changed (schema, permissions, component APIs, constants, scripts, etc.). Do not rewrite sections that are still accurate.
+
+## Player guide maintenance
+
+After adding or changing any user-facing feature, review both:
+
+- `PLAYER_GUIDE.md` — the standalone markdown guide (Commander, Monarch, Admin sections)
+- `src/components/HelpModal.jsx` — the in-app help modal (same role-based structure)
+
+Update whichever sections are affected. Both files should stay in sync with each other and with the actual feature set. Not every commit needs a guide change — only update when behavior visible to players or admins has changed (new controls, changed permissions, new UI elements, removed features, etc.).
