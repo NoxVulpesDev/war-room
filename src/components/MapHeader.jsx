@@ -110,7 +110,7 @@ export default function MapHeader({
         })}
         {/* Per-user unit cap indicator */}
         {!isAdminMode && tokenCap != null && selectedMap && (() => {
-          const ownedCount = tokens.filter(t => t.ownerId === userProfile.uid).reduce((s, t) => s + t.count, 0);
+          const ownedCount = tokens.filter(t => t.ownerId === userProfile.uid && t.faction !== "contested").reduce((s, t) => s + t.count, 0);
           const atLimit = ownedCount >= tokenCap;
           return (
             <div style={{
