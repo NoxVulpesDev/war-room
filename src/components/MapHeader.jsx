@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { MAPS, FACTIONS, NATIONS } from "../constants";
+import HelpModal from "./HelpModal";
 
 export default function MapHeader({
   selectedMap, handleMapSelect,
@@ -14,6 +16,8 @@ export default function MapHeader({
   onOpenTimeline, isReplaying,
   tokenCap,
 }) {
+  const [showHelp, setShowHelp] = useState(false);
+
   return (
     <header style={{
       padding: "14px 24px",
@@ -225,6 +229,24 @@ export default function MapHeader({
           </button>
         )}
 
+        {/* Help */}
+        {firebaseUser && (
+          <button
+            onClick={() => setShowHelp(true)}
+            style={{
+              fontFamily: "'Cinzel', serif", fontSize: 10, fontWeight: 600,
+              letterSpacing: "0.06em", textTransform: "uppercase",
+              padding: "5px 10px", borderRadius: 3,
+              border: "1px solid #3a2209", background: "#150b02",
+              color: "#5c4a28", cursor: "pointer", transition: "all 0.15s",
+            }}
+            onMouseOver={e => { e.currentTarget.style.color = "#c4952a"; e.currentTarget.style.borderColor = "#5c3d11"; }}
+            onMouseOut={e => { e.currentTarget.style.color = "#5c4a28"; e.currentTarget.style.borderColor = "#3a2209"; }}
+          >
+            ? Guide
+          </button>
+        )}
+
         {/* Sign out */}
         {firebaseUser && (
           <button
@@ -243,6 +265,14 @@ export default function MapHeader({
           </button>
         )}
       </div>
+
+      {showHelp && (
+        <HelpModal
+          onClose={() => setShowHelp(false)}
+          isAdmin={isAdmin}
+          isMonarch={isMonarch}
+        />
+      )}
     </header>
   );
 }
