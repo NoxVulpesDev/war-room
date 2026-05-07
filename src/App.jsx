@@ -7,9 +7,11 @@ import { getMapLayoutBounds, getMapScreenBounds, generateId, findMergeTarget } f
 import MapHeader from "./components/MapHeader";
 import TokenLayer from "./components/TokenLayer";
 import TokenPanel from "./components/TokenPanel";
+import TimelineBar from "./components/TimelineBar";
 import { useAuth } from "./hooks/useAuth";
 import { useFirestoreTokenSync } from "./hooks/useFirestoreTokenSync";
 import { useMapZoomPan } from "./hooks/useMapZoomPan";
+import { useHistoryTimeline } from "./hooks/useHistoryTimeline";
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function BattleMap() {
@@ -51,8 +53,6 @@ export default function BattleMap() {
 
   const [mapNaturalSize, setMapNaturalSize] = useState(null);
 
-  const selectedToken = tokens.find(t => t.id === selected);
-
   // Preload all map images on mount so switching between maps is instant.
   useEffect(() => {
     MAPS.forEach(({ src }) => { const img = new Image(); img.src = src; });
@@ -78,6 +78,17 @@ export default function BattleMap() {
     handleMouseDown, handleCanvasTouchStart,
     adjustZoom, resetView,
   } = useMapZoomPan({ mode, authReady, mapImgRef, setTokens, setTokensAndSave });
+
+  const {
+    isOpen: timelineOpen, entries: historyEntries,
+    viewingIndex, setViewingIndex,
+    isReplaying, currentSnapshot,
+    loading: historyLoading,
+    openTimeline, exitReplay,
+  } = useHistoryTimeline({ sessionId });
+
+  const displayTokens  = isReplaying && currentSnapshot ? currentSnapshot : tokens;
+  const selectedToken  = displayTokens.find(t => t.id === selected);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // PERMISSION HELPERS
@@ -113,6 +124,7 @@ export default function BattleMap() {
   // CANVAS INTERACTIONS
   // ─────────────────────────────────────────────────────────────────────────────
   const handleCanvasClick = useCallback((e) => {
+    if (isReplaying) return;
     if (mode !== "place") return;
     if (dragPanRef.current) return;
     if (!canPlaceFaction(placingFaction)) return;
@@ -159,7 +171,7 @@ export default function BattleMap() {
         members: [{ id: memberId, name: '', count: 1, notes: [], ownerId: userProfile?.uid ?? null, nation: userProfile?.nation ?? null }],
       }], { actionType: "place", description: `Placed ${placingFaction} troops` });
     }
-  }, [mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdminMode, selectedMap, setTokenLimitWarning]);
+  }, [isReplaying, mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdminMode, selectedMap, setTokenLimitWarning]);
 
   const handleDragStart = (e, id) => {
     if (mode !== "move") return;
@@ -176,6 +188,7 @@ export default function BattleMap() {
 
   const handleCanvasDrop = useCallback((e) => {
     e.preventDefault();
+    if (isReplaying) return;
     if (!dragId) return;
     const mb = getMapScreenBounds(mapImgRef.current);
     if (!mb) return;
@@ -208,9 +221,10 @@ export default function BattleMap() {
       setTokensAndSave(prev => prev.map(t => t.id === dragId ? { ...t, x, y } : t), { actionType: "move", description: "Moved troops" });
     }
     setDragId(null);
-  }, [dragId, tokens, setTokensAndSave]);
+  }, [isReplaying, dragId, tokens, setTokensAndSave]);
 
   const handleTokenClick = (id) => {
+    if (isReplaying) return;
     if (mode === "pan") return;
     const token = tokens.find(t => t.id === id);
     if (!token) return;
@@ -275,6 +289,10 @@ export default function BattleMap() {
   };
 
   useEffect(() => { setSplitCount(0); }, [selected]);
+
+  useEffect(() => {
+    if (isReplaying) { setSelected(null); setShowPanel(false); }
+  }, [isReplaying]);
 
   const handleSplit = () => {
     if (!selectedToken) return;
@@ -402,6 +420,7 @@ export default function BattleMap() {
         saveStatus={saveStatus} tokens={tokens}
         zoom={zoom} adjustZoom={adjustZoom} resetView={resetView}
         onOpenAdminPanel={() => setShowAdminPanel(true)}
+        onOpenTimeline={openTimeline} isReplaying={isReplaying}
       />
 
       {/* ── Main layout ─────────────────────────────────────────────────────── */}
@@ -465,13 +484,39 @@ export default function BattleMap() {
           </div>
 
           <TokenLayer
-            tokens={tokens} layoutBounds={layoutBounds} pan={pan} zoom={zoom}
-            selected={selected} mode={mode}
+            tokens={displayTokens} layoutBounds={layoutBounds} pan={pan} zoom={zoom}
+            selected={selected} mode={isReplaying ? "pan" : mode}
             canMutateToken={canMutateToken} userProfiles={userProfiles}
             tokenTouchRef={tokenTouchRef}
             tokenLimitWarning={tokenLimitWarning} onForeignMap={onForeignMap}
             handleDragStart={handleDragStart} handleTokenClick={handleTokenClick}
           />
+
+          {/* Replay banner */}
+          {isReplaying && (
+            <div style={{
+              position: "absolute", top: 0, left: 0, right: 0, zIndex: 20,
+              background: "rgba(60, 20, 5, 0.90)", borderBottom: "1px solid #8b3d11",
+              padding: "6px 14px", display: "flex", alignItems: "center",
+              justifyContent: "space-between", backdropFilter: "blur(4px)",
+            }}>
+              <span style={{ fontFamily: "'Cinzel', serif", fontSize: 11, color: "#f0d060", letterSpacing: "0.08em" }}>
+                📜 VIEWING HISTORY — edits disabled
+              </span>
+              <button className="toolbar-btn active" onClick={exitReplay}>⟳ Return to Live</button>
+            </div>
+          )}
+
+          {/* Timeline bar */}
+          {timelineOpen && (
+            <TimelineBar
+              entries={historyEntries}
+              viewingIndex={viewingIndex}
+              setViewingIndex={setViewingIndex}
+              loading={historyLoading}
+              onClose={exitReplay}
+            />
+          )}
 
           {/* Border ornaments */}
           <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} xmlns="http://www.w3.org/2000/svg">

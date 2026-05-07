@@ -5,7 +5,7 @@ import {
   doc, getDoc, setDoc,
   collection, onSnapshot,
   writeBatch, serverTimestamp, deleteDoc,
-  getDocs, addDoc,
+  getDocs, addDoc, query, orderBy, limit,
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -115,6 +115,16 @@ export async function getGlobalSettings() {
 
 export async function updateGlobalSettings(updates) {
   await setDoc(doc(db, "config", "global"), updates, { merge: true });
+}
+
+export async function getHistory(sessionId) {
+  const q = query(
+    collection(db, "sessions", sessionId, "history"),
+    orderBy("timestamp", "desc"),
+    limit(100)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse();
 }
 
 export async function saveHistoryEntry(sessionId, tokens, { actorId, actorName, actionType, description }) {
