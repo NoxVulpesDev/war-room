@@ -46,9 +46,8 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
 
   if (!arrows.length) return null;
 
-  const factions  = [...new Set(arrows.map(a => a.faction))];
-  const strokeW   = Math.max(2, 2 * zoom);
-  const outlineW  = strokeW + 3; // ~1.5px dark ring on each side
+  const factions = [...new Set(arrows.map(a => a.faction))];
+  const strokeW  = Math.max(3, 3 * zoom);
 
   return (
     <svg
@@ -57,16 +56,9 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
     >
       <defs>
         <filter id="mv-shadow" x="-40%" y="-40%" width="180%" height="180%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000000" floodOpacity="0.85" />
+          <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000000" floodOpacity="0.9" />
         </filter>
 
-        {/* Outline arrowhead (dark) */}
-        <marker id="mv-arrow-outline" viewBox="0 0 10 6" refX="9" refY="3"
-          markerWidth="6" markerHeight="5" orient="auto" markerUnits="strokeWidth">
-          <path d="M0,0 L10,3 L0,6 Z" fill="#0d0600" />
-        </marker>
-
-        {/* Coloured arrowheads per faction */}
         {factions.map(f => {
           const color = ARROW_COLOR[f] ?? ARROW_COLOR.player;
           return (
@@ -79,14 +71,6 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
       </defs>
 
       <g filter="url(#mv-shadow)">
-        {/* Outline pass — solid, just a few px wider than the colour pass */}
-        {arrows.map(({ id, x1, y1, x2, y2 }) => (
-          <line key={`out-${id}`} x1={x1} y1={y1} x2={x2} y2={y2}
-            stroke="#0d0600" strokeWidth={outlineW}
-            strokeLinecap="round" markerEnd="url(#mv-arrow-outline)" />
-        ))}
-
-        {/* Colour pass — solid, sits inside the outline ring */}
         {arrows.map(({ id, x1, y1, x2, y2, faction }) => {
           const color = ARROW_COLOR[faction] ?? ARROW_COLOR.player;
           return (
