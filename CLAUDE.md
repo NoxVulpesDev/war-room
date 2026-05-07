@@ -20,7 +20,7 @@ npm run deploy     # Build + deploy to GitHub Pages at /war-room/
 ```
 src/
   main.jsx                     Entry point
-  App.jsx                      Top-level component (~440 lines): composes hooks,
+  App.jsx                      Top-level component (~580 lines): composes hooks,
                                owns token interaction handlers, renders layout
   AuthModal.jsx                Login/signup modal with nation selection
   AdminPanel.jsx               Admin UI: user management, global settings
@@ -36,12 +36,16 @@ src/
                                debounced save pipeline, saveStatus
     useMapZoomPan.js           zoom/pan state, wheel/mouse/touch gestures,
                                canvas resize observer
+    useHistoryTimeline.js      history fetch, timeline open/close, scrub index,
+                               replay snapshot projection
   components/
     MapHeader.jsx              Top toolbar (map select, mode/faction, zoom,
                                save status, role badge, sign-out)
     TokenLayer.jsx             Token rendering loop + warning banners
     TokenPanel.jsx             Slide-out detail panel (count, notes, split, delete)
     KnotCorner.jsx             Decorative SVG corner ornament
+    MovementArrows.jsx         SVG overlay: arrows + ghost circles for timeline replay
+    TimelineBar.jsx            Timeline scrubber UI with timestamps and step controls
 ```
 
 ### Data flow
@@ -55,6 +59,8 @@ src/
 
 ```
 /sessions/{sessionId}/tokens/{tokenId}   — one collection per map (sessionId = map ID)
+/sessions/{sessionId}/history/{entryId} — { timestamp, actorId, actorName, actionType,
+                                           description, snapshot: {tokenId: tokenData} }
 /users/{uid}                             — { role, nation, displayName, maxTokens, ... }
 /config/global                           — { defaultMaxTokens }
 ```
@@ -90,7 +96,7 @@ Role flags (`isAdmin`, `isMonarch`, `isPlayer`, `isAdminMode`) live in `useAuth.
 
 - `vite.config.js` — base path is `/war-room/` (required for GitHub Pages)
 - `.env.local` — Firebase credentials (not committed); Firebase project ID: `war-room-81e5c`
-- All styling is inline CSS inside components; shared CSS class names (`.toolbar-btn`, `.mode-btn`, etc.) are defined in a `<style>` block rendered by `App.jsx`
+- Styling is mostly inline CSS in components; `src/App.css` holds a few shared classes (`.counter`, etc.), `src/index.css` has global resets; shared toolbar classes (`.toolbar-btn`, `.mode-btn`, etc.) are in a `<style>` block in `App.jsx`
 
 ## README maintenance
 
