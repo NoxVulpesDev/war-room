@@ -51,7 +51,7 @@ export default function MovementArrows({ prevSnapshot, currSnapshot, layoutBound
 
   return (
     <svg
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9 }}
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9, filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.95))" }}
       overflow="visible"
       xmlns="http://www.w3.org/2000/svg"
     >
