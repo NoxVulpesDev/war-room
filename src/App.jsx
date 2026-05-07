@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { deleteToken } from "./firebase";
+import { deleteToken, donateToken } from "./firebase";
 import AuthModal from "./AuthModal";
 import AdminPanel from "./AdminPanel";
 import { MAPS, TOKEN_RADIUS, MERGE_THRESHOLD, SAVE_DEBOUNCE } from "./constants";
@@ -37,6 +37,8 @@ export default function BattleMap() {
     userId:    userProfile?.uid         ?? null,
     actorName: userProfile?.displayName ?? null,
     isAdminMode,
+    isMonarch,
+    userNation: userProfile?.nation ?? null,
   });
 
   // ── Token state ─────────────────────────────────────────────────────────────
@@ -108,6 +110,17 @@ export default function BattleMap() {
     if (isAdminMode) return true;
     return faction !== "enemy";
   }, [userProfile, isAdminMode]);
+
+  // Monarchs may edit the count (but not move/delete) of any token belonging to their nation.
+  const canEditCount = useCallback((token) => {
+    if (!userProfile) return false;
+    if (isAdminMode) return true;
+    if (token.faction === "enemy") return false;
+    if (token.ownerId === userProfile.uid) return true;
+    if (token.members?.some(m => m.ownerId === userProfile.uid)) return true;
+    if (isMonarch && token.nation === userProfile.nation) return true;
+    return false;
+  }, [userProfile, isAdminMode, isMonarch]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // MAP SELECTION
@@ -288,6 +301,17 @@ export default function BattleMap() {
       };
     }));
   };
+
+  const handleDonate = useCallback(async (newOwnerId) => {
+    if (!selectedToken || !userProfile || newOwnerId === userProfile.uid) return;
+    const recipientProfile = userProfiles[newOwnerId];
+    const newNation = recipientProfile?.nation ?? null;
+    // Write directly — the debounce pipeline skips tokens whose ownerId changed away from us
+    await donateToken(sessionId, selectedToken.id, newOwnerId, newNation);
+    setTokensAndSave(prev => prev.map(t =>
+      t.id === selectedToken.id ? { ...t, ownerId: newOwnerId, nation: newNation } : t
+    ), { actionType: "donate", description: `Donated token to ${recipientProfile?.displayName ?? "another player"}` });
+  }, [selectedToken, userProfile, userProfiles, sessionId, setTokensAndSave]);
 
   useEffect(() => { setSplitCount(0); }, [selected]);
 
@@ -548,13 +572,15 @@ export default function BattleMap() {
         <TokenPanel
           selectedToken={selectedToken} showPanel={showPanel}
           selected={selected} setSelected={setSelected} setShowPanel={setShowPanel}
-          canMutateToken={canMutateToken} isAdmin={isAdmin} isMonarch={isMonarch}
+          canMutateToken={canMutateToken} canEditCount={canEditCount}
+          isAdmin={isAdmin} isMonarch={isMonarch}
           userProfile={userProfile} userProfiles={userProfiles}
           setTokensAndSave={setTokensAndSave}
           noteInput={noteInput} setNoteInput={setNoteInput}
           addNote={addNote} removeNote={removeNote}
           splitCount={splitCount} setSplitCount={setSplitCount} handleSplit={handleSplit}
           handleSetMemberName={handleSetMemberName}
+          handleDonate={handleDonate}
           sessionId={sessionId}
         />
       </div>

@@ -10,26 +10,30 @@ const selectStyle = { background: "#1f1005", border: "1px solid #5c3d11", border
 export default function TokenPanel({
   selectedToken, showPanel,
   selected, setSelected, setShowPanel,
-  canMutateToken, isAdmin, isMonarch,
+  canMutateToken, canEditCount, isAdmin, isMonarch,
   userProfile, userProfiles,
   setTokensAndSave,
   noteInput, setNoteInput, addNote, removeNote,
   splitCount, setSplitCount, handleSplit,
   handleSetMemberName,
+  handleDonate,
   sessionId,
 }) {
   const locked = selectedToken ? !canMutateToken(selectedToken) : true;
+  const countLocked = selectedToken ? !canEditCount(selectedToken) : true;
+  const isOwner = selectedToken?.ownerId === userProfile?.uid;
   const [noteTarget, setNoteTarget] = useState(0);
+  const [donateTarget, setDonateTarget] = useState("");
 
   const members = selectedToken?.members ?? [];
   const isGrouped = members.length > 1;
   const activeMemberIdx = isGrouped ? Math.min(splitCount, members.length - 1) : 0;
   const activeMember = members[activeMemberIdx] ?? null;
 
-  useEffect(() => { setNoteTarget(0); }, [selected]);
+  useEffect(() => { setNoteTarget(0); setDonateTarget(""); }, [selected]);
 
   const memberLabel = (member) => {
-    const name = member.name?.trim() || (member.ownerId && userProfiles[member.ownerId]) || "Unnamed";
+    const name = member.name?.trim() || (member.ownerId && userProfiles[member.ownerId]?.displayName) || "Unnamed";
     const nation = member.nation && NATIONS[member.nation] ? NATIONS[member.nation].label : null;
     return nation ? `${name} — ${nation}` : name;
   };
@@ -74,20 +78,20 @@ export default function TokenPanel({
                 : selectedToken.faction === "enemy"  ? "#e8a0a0"
                 : "#e8a0d2",
             }}>
-              {FACTIONS[selectedToken.faction].icon} {selectedToken.faction === "player" && selectedToken.ownerId && userProfiles[selectedToken.ownerId] ? userProfiles[selectedToken.ownerId] : FACTIONS[selectedToken.faction].label}
+              {FACTIONS[selectedToken.faction].icon} {selectedToken.faction === "player" && selectedToken.ownerId && userProfiles[selectedToken.ownerId] ? userProfiles[selectedToken.ownerId]?.displayName ?? FACTIONS[selectedToken.faction].label : FACTIONS[selectedToken.faction].label}
               {selectedToken.faction === "player" && selectedToken.nation && NATIONS[selectedToken.nation] && (
                 <span style={{ fontSize: 12, fontWeight: 400, opacity: 0.8 }}> — {NATIONS[selectedToken.nation].label}</span>
               )}
             </p>
             <p style={{ margin: "0 0 4px", fontSize: 13, color: "#8b7040" }}>Count</p>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button disabled={locked}
-                onClick={() => !locked && setTokensAndSave(prev => prev.map(t => t.id === selected && t.count > 1 ? { ...t, count: t.count - 1 } : t))}
-                style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: locked ? "not-allowed" : "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", opacity: locked ? 0.5 : 1 }}>−</button>
+              <button disabled={countLocked}
+                onClick={() => !countLocked && setTokensAndSave(prev => prev.map(t => t.id === selected && t.count > 1 ? { ...t, count: t.count - 1 } : t))}
+                style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: countLocked ? "not-allowed" : "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", opacity: countLocked ? 0.5 : 1 }}>−</button>
               <span style={{ fontSize: 18, fontFamily: "'Cinzel', serif", fontWeight: 700, color: "#f5e8c0", minWidth: 24, textAlign: "center" }}>{selectedToken.count}</span>
-              <button disabled={locked}
-                onClick={() => !locked && setTokensAndSave(prev => prev.map(t => t.id === selected ? { ...t, count: t.count + 1 } : t))}
-                style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: locked ? "not-allowed" : "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", opacity: locked ? 0.5 : 1 }}>+</button>
+              <button disabled={countLocked}
+                onClick={() => !countLocked && setTokensAndSave(prev => prev.map(t => t.id === selected ? { ...t, count: t.count + 1 } : t))}
+                style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: countLocked ? "not-allowed" : "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", opacity: countLocked ? 0.5 : 1 }}>+</button>
             </div>
           </div>
 
@@ -118,7 +122,7 @@ export default function TokenPanel({
                   <select value={splitCount} onChange={e => setSplitCount(Number(e.target.value))}
                     style={{ ...selectStyle, marginBottom: 6 }}>
                     {members.map((member, i) => {
-                      const name = member.name?.trim() || (member.ownerId && userProfiles[member.ownerId]) || "Unnamed";
+                      const name = member.name?.trim() || (member.ownerId && userProfiles[member.ownerId]?.displayName) || "Unnamed";
                       const nation = member.nation && NATIONS[member.nation] ? NATIONS[member.nation].label : null;
                       return <option key={i} value={i}>{name}{nation ? ` — ${nation}` : ""} ({member.count} unit{member.count !== 1 ? "s" : ""})</option>;
                     })}
@@ -141,6 +145,36 @@ export default function TokenPanel({
                   <p style={{ margin: "5px 0 0", fontSize: 11, color: "#5c4a28" }}>Detaches {Math.max(1, splitCount)} unit{Math.max(1, splitCount) !== 1 ? "s" : ""} into a new token nearby</p>
                 </>
               )}
+            </div>
+          )}
+
+          {/* Donate Token */}
+          {isOwner && !locked && selectedToken.faction !== "enemy" && (
+            <div style={{ marginBottom: 16 }}>
+              <p style={sectionLabel}>Donate Token</p>
+              <select
+                value={donateTarget}
+                onChange={e => setDonateTarget(e.target.value)}
+                style={{ ...selectStyle, marginBottom: 6 }}
+              >
+                <option value="">— Select recipient —</option>
+                {Object.values(userProfiles)
+                  .filter(u => u.uid !== userProfile?.uid)
+                  .sort((a, b) => (a.displayName ?? "").localeCompare(b.displayName ?? ""))
+                  .map(u => (
+                    <option key={u.uid} value={u.uid}>
+                      {u.displayName ?? u.uid}{u.nation && NATIONS[u.nation] ? ` — ${NATIONS[u.nation].label}` : ""}
+                    </option>
+                  ))}
+              </select>
+              <button
+                disabled={!donateTarget}
+                onClick={() => { if (donateTarget) { handleDonate(donateTarget); setDonateTarget(""); } }}
+                style={{ width: "100%", background: donateTarget ? "#1a2a3d" : "#1f1005", border: `1px solid ${donateTarget ? "#3d6e8b" : "#3a2209"}`, color: donateTarget ? "#90c4e0" : "#5c4a28", borderRadius: 3, padding: "5px 8px", cursor: donateTarget ? "pointer" : "not-allowed", fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: "0.05em", textTransform: "uppercase" }}
+              >
+                ⇒ Transfer ownership
+              </button>
+              <p style={{ margin: "5px 0 0", fontSize: 11, color: "#5c4a28" }}>Transfers full control of this token to the selected player</p>
             </div>
           )}
 
@@ -190,7 +224,7 @@ export default function TokenPanel({
                 <select value={noteTarget} onChange={e => setNoteTarget(e.target.value === "group" ? "group" : Number(e.target.value))}
                   style={{ ...selectStyle, fontSize: 12, marginBottom: 6 }}>
                   {members.map((m, i) => (
-                    <option key={i} value={i}>Note on: {m.name?.trim() || (m.ownerId && userProfiles[m.ownerId]) || "Unnamed"}</option>
+                    <option key={i} value={i}>Note on: {m.name?.trim() || (m.ownerId && userProfiles[m.ownerId]?.displayName) || "Unnamed"}</option>
                   ))}
                   <option value="group">Note on: Group</option>
                 </select>

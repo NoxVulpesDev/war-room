@@ -257,7 +257,7 @@ One history entry per significant token action. Written fire-and-forget after ev
   timestamp:   Timestamp,
   actorId:     string | null,   // Firebase UID of the user who acted
   actorName:   string | null,   // Display name at time of action
-  actionType:  "place" | "move" | "merge" | "delete" | "split" | "rename",
+  actionType:  "place" | "move" | "merge" | "delete" | "split" | "rename" | "donate",
   description: string,          // Human-readable e.g. "Moved player troops"
   snapshot:    {                // Full token state at this moment
     [tokenId]: { faction, x, y, count, notes, ownerId, nation, members }
@@ -311,7 +311,7 @@ Manages all authentication state and derived permission flags.
 **Returns:** `{ authReady, firebaseUser, userProfile, userProfiles, showAuthModal, adminMode, setAdminMode, isAdmin, isMonarch, isPlayer, isAdminMode, handleAuthSuccess }`
 
 - `authReady` — false until the first `onAuthStateChanged` fires; gates the loading screen
-- `userProfiles` — map of `uid → displayName` for all users; loaded once on sign-in
+- `userProfiles` — map of `uid → full user object` (`{ uid, displayName, nation, role, … }`) for all users; loaded once on sign-in. Use `userProfiles[uid]?.displayName` to read the display name.
 - `isAdminMode` — true only when `isAdmin && adminMode`; admins must opt in each session
 - `handleAuthSuccess(fbUser, profile)` — called by `AuthModal` on successful login/signup
 
@@ -319,7 +319,7 @@ Manages all authentication state and derived permission flags.
 
 Manages token state, the real-time Firestore listener, and the debounced save pipeline.
 
-**Params:** `{ isPlayer, selectedMap, sessionId, userId, actorName, isAdminMode }`
+**Params:** `{ isPlayer, selectedMap, sessionId, userId, actorName, isAdminMode, isMonarch, userNation }`
 
 **Returns:** `{ tokens, setTokens, setTokensAndSave, saveStatus }`
 
@@ -366,7 +366,7 @@ Renders the token overlay (positioned absolutely over the canvas, outside the zo
 
 ### `src/components/TokenPanel.jsx`
 
-Slide-out detail panel (right edge). Shows faction, count controls, a **Unit Name** input (per-member, controlled by the split dropdown selection), split controls, field notes grouped by member with headers, a per-member note target dropdown, and the remove button. When a token has two or more members the split section renders a dropdown listing each member by unit name / owner / nation / count; for legacy tokens it falls back to a numeric picker. Computes its own `locked` state from `canMutateToken(selectedToken)`. Imports `deleteToken` from `firebase.js` directly.
+Slide-out detail panel (right edge). Shows faction, count controls, a **Unit Name** input (per-member, controlled by the split dropdown selection), split controls, a **Donate Token** section (owner-only), field notes grouped by member with headers, a per-member note target dropdown, and the remove button. When a token has two or more members the split section renders a dropdown listing each member by unit name / owner / nation / count; for legacy tokens it falls back to a numeric picker. Computes `locked` from `canMutateToken` and `countLocked` from `canEditCount` (monarchs can adjust counts on nation tokens without full mutation access). Imports `deleteToken` from `firebase.js` directly.
 
 ### `src/AuthModal.jsx` — `AuthModal`
 
@@ -398,7 +398,8 @@ Firebase initialisation and all Firestore operations.
 | `db` | Firestore instance | Used internally by all functions below |
 | `getOrCreateUserProfile(user)` | async fn | Creates user doc on signup; merges on subsequent logins |
 | `subscribeToTokens(sessionId, callback)` | fn → unsubscribe | Real-time Firestore listener |
-| `saveTokens(sessionId, tokens, currentUserId, isAdmin)` | async fn | Batch-writes the full token array using an **explicit field list** — adding a new token field requires adding it here too |
+| `saveTokens(sessionId, tokens, currentUserId, isAdmin, deleteIds, monarchNation?)` | async fn | Batch-writes the full token array using an **explicit field list**. Monarchs may also write tokens where `token.nation === monarchNation`. Adding a new token field requires adding it here too. |
+| `donateToken(sessionId, tokenId, newOwnerId, newNation)` | async fn | Immediately updates a token's `ownerId` and `nation` via a merged write — bypasses the debounce pipeline |
 | `deleteToken(sessionId, tokenId)` | async fn | Immediately removes one token document |
 | `getAllUsers()` | async fn | Returns all documents from `users/` collection |
 | `updateUserProfile(uid, updates)` | async fn | Merges a partial update into a user document |
@@ -468,6 +469,8 @@ Admin features additionally require `adminMode` to be toggled on in the toolbar.
 | Move own tokens | Yes | Yes | Yes | Yes |
 | Move others' tokens | No | No | No | Yes |
 | Edit / split a group containing own tokens | Yes | Yes | Yes | Yes |
+| Edit count on any token of own nation | No | Yes | No | Yes |
+| Donate own token to another player | Yes | Yes | Yes | Yes |
 | Delete own tokens | Yes | Yes | Yes | Yes |
 | Delete others' tokens | No | No | No | Yes |
 | See enemy faction tokens | No | No | Yes | Yes |
@@ -639,7 +642,7 @@ The `base: '/war-room/'` in `vite.config.js` must match the GitHub Pages subpath
 
 **Tokens are not deleted on disconnect.** All tokens persist in Firestore indefinitely. There is no ephemeral/presence layer. Session cleanup must be done manually via the Admin Panel or directly in the Firestore console.
 
-**`saveTokens` only writes tokens the caller owns.** Non-admin users filter the token array to `ownerId === currentUserId` before writing. A player cannot overwrite another player's tokens even if local state contains them.
+**`saveTokens` only writes tokens the caller owns (or, for monarchs, tokens of their nation).** Non-admin users filter the token array to `ownerId === currentUserId` before writing. Monarchs additionally write tokens where `token.nation === userNation`. A commander cannot overwrite another player's tokens even if local state contains them.
 
 **`saveTokens` uses an explicit field list.** The `batch.set` call in `firebase.js` enumerates every persisted field by name. If a new field is added to the token shape but omitted from that list, it will appear in local state and vanish silently on the next Firestore round-trip. Always add new token fields to both the placement handler in `App.jsx` and the write object in `saveTokens`.
 

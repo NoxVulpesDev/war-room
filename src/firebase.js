@@ -69,11 +69,13 @@ export function subscribeToTokens(sessionId, callback) {
   });
 }
 
-export async function saveTokens(sessionId, tokens, currentUserId = null, isAdmin = false, deleteIds = []) {
+export async function saveTokens(sessionId, tokens, currentUserId = null, isAdmin = false, deleteIds = [], monarchNation = null) {
   const batch = writeBatch(db);
   tokens.forEach((token) => {
     if (!isAdmin) {
-      if (!token.ownerId || token.ownerId !== currentUserId) return;
+      const ownedByUser = token.ownerId && token.ownerId === currentUserId;
+      const monarchCanSave = monarchNation && token.nation === monarchNation && token.faction !== "enemy";
+      if (!ownedByUser && !monarchCanSave) return;
     }
     const ref = doc(db, "sessions", sessionId, "tokens", token.id);
     batch.set(ref, {
@@ -92,6 +94,13 @@ export async function saveTokens(sessionId, tokens, currentUserId = null, isAdmi
     batch.delete(doc(db, "sessions", sessionId, "tokens", id));
   });
   await batch.commit();
+}
+
+export async function donateToken(sessionId, tokenId, newOwnerId, newNation) {
+  await setDoc(doc(db, "sessions", sessionId, "tokens", tokenId),
+    { ownerId: newOwnerId, nation: newNation, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
 }
 
 export async function deleteToken(sessionId, tokenId) {

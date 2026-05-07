@@ -37,7 +37,7 @@ export function useAuth() {
     if (!isPlayer) return;
     getAllUsers().then(users => {
       const map = {};
-      users.forEach(u => { map[u.uid] = u.displayName; });
+      users.forEach(u => { map[u.uid] = u; });
       setUserProfiles(map);
     });
   }, [isPlayer]);

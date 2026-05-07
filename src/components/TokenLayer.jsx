@@ -41,7 +41,7 @@ export default function TokenLayer({
                   tokenTouchRef.current = { id: token.id };
                 }
               }}
-              title={token.notes?.join(" | ") || `${token.faction === "player" && token.ownerId && userProfiles[token.ownerId] ? userProfiles[token.ownerId] : faction.label}${token.nation ? ` (${NATIONS[token.nation]?.label ?? token.nation})` : ""}${locked ? " — not yours" : ""}`}
+              title={token.notes?.join(" | ") || `${token.faction === "player" && token.ownerId && userProfiles[token.ownerId] ? userProfiles[token.ownerId]?.displayName ?? faction.label : faction.label}${token.nation ? ` (${NATIONS[token.nation]?.label ?? token.nation})` : ""}${locked ? " — not yours" : ""}`}
               className={locked ? "token-locked" : ""}
               style={{
                 position: "absolute",

@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { subscribeToTokens, saveTokens, saveHistoryEntry } from "../firebase";
 import { SAVE_DEBOUNCE } from "../constants";
 
-export function useFirestoreTokenSync({ isPlayer, selectedMap, sessionId, userId, actorName, isAdminMode }) {
+export function useFirestoreTokenSync({ isPlayer, selectedMap, sessionId, userId, actorName, isAdminMode, isMonarch, userNation }) {
   const [tokens,     setTokens]     = useState([]);
   const [saveStatus, setSaveStatus] = useState("idle");
 
@@ -41,7 +41,7 @@ export function useFirestoreTokenSync({ isPlayer, selectedMap, sessionId, userId
       const meta = pendingActionMetaRef.current;
       pendingActionMetaRef.current = null;
       try {
-        await saveTokens(sessionId, localTokensRef.current, userId, isAdminMode, toDelete);
+        await saveTokens(sessionId, localTokensRef.current, userId, isAdminMode, toDelete, isMonarch ? userNation : null);
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 2000);
         if (meta) {
@@ -57,7 +57,7 @@ export function useFirestoreTokenSync({ isPlayer, selectedMap, sessionId, userId
         setSaveStatus("error");
       }
     }, SAVE_DEBOUNCE);
-  }, [isPlayer, selectedMap, sessionId, userId, actorName, isAdminMode]);
+  }, [isPlayer, selectedMap, sessionId, userId, actorName, isAdminMode, isMonarch, userNation]);
 
   const setTokensAndSave = useCallback((updater, actionMeta = null) => {
     setTokens(prev => {
