@@ -31,7 +31,8 @@ export default function BattleMap() {
 
   const { tokens, setTokens, setTokensAndSave, saveStatus } = useFirestoreTokenSync({
     isPlayer, selectedMap, sessionId,
-    userId: userProfile?.uid ?? null,
+    userId:    userProfile?.uid         ?? null,
+    actorName: userProfile?.displayName ?? null,
     isAdminMode,
   });
 
@@ -144,7 +145,7 @@ export default function BattleMap() {
           count: t.count + 1,
           members: [...existingMembers, { id: generateId(), name: '', count: 1, notes: [], ownerId: userProfile?.uid ?? null, nation: userProfile?.nation ?? null }],
         };
-      }));
+      }), { actionType: "merge", description: `Merged ${placingFaction} troops` });
     } else {
       const memberId = generateId();
       setTokensAndSave(prev => [...prev, {
@@ -156,7 +157,7 @@ export default function BattleMap() {
         ownerId: userProfile?.uid ?? null,
         nation:  userProfile?.nation ?? null,
         members: [{ id: memberId, name: '', count: 1, notes: [], ownerId: userProfile?.uid ?? null, nation: userProfile?.nation ?? null }],
-      }]);
+      }], { actionType: "place", description: `Placed ${placingFaction} troops` });
     }
   }, [mode, tokens, placingFaction, canPlaceFaction, userProfile, setTokensAndSave, isAdminMode, selectedMap, setTokenLimitWarning]);
 
@@ -201,10 +202,10 @@ export default function BattleMap() {
             : [{ id: t.id + "_m0", name: t.name ?? '', count: t.count, notes: t.notes ?? [], ownerId: t.ownerId, nation: t.nation }];
           return { ...t, count: t.count + dragged.count, members: [...targetMembers, ...draggedMembers] };
         })
-      );
+      , { actionType: "merge", description: `Merged ${dragged.faction} troops` });
       setSelected(mergeTarget.id);
     } else {
-      setTokensAndSave(prev => prev.map(t => t.id === dragId ? { ...t, x, y } : t));
+      setTokensAndSave(prev => prev.map(t => t.id === dragId ? { ...t, x, y } : t), { actionType: "move", description: "Moved troops" });
     }
     setDragId(null);
   }, [dragId, tokens, setTokensAndSave]);
@@ -215,7 +216,7 @@ export default function BattleMap() {
     if (!token) return;
     if (mode === "delete") {
       if (!canMutateToken(token)) return;
-      setTokensAndSave(prev => prev.filter(t => t.id !== id));
+      setTokensAndSave(prev => prev.filter(t => t.id !== id), { actionType: "delete", description: `Removed ${token.faction} troops` });
       // Also delete from Firestore immediately (don't wait for debounce)
       deleteToken(sessionId, id);
       if (selected === id) setSelected(null);
@@ -256,7 +257,7 @@ export default function BattleMap() {
         ...t,
         members: t.members.map((m, mi) => mi === memberIdx ? { ...m, name } : m),
       };
-    }));
+    }), { actionType: "rename", description: "Renamed unit" });
   };
 
   // source: 'group' for top-level notes, or a member index (number) for member notes
@@ -299,7 +300,7 @@ export default function BattleMap() {
           nation: member.nation,
           members: [{ ...member }],
         },
-      ]);
+      ], { actionType: "split", description: `Split ${selectedToken.faction} troops` });
     } else if (selectedToken.count >= 2) {
       // Legacy path for tokens without members
       const n = Math.min(Math.max(1, splitCount), selectedToken.count - 1);
@@ -318,7 +319,7 @@ export default function BattleMap() {
           nation: selectedToken.nation ?? null,
           members: [{ id: newMemberId, count: n, notes: [], ownerId: selectedToken.ownerId, nation: selectedToken.nation ?? null }],
         },
-      ]);
+      ], { actionType: "split", description: `Split ${selectedToken.faction} troops` });
     }
     setSplitCount(0);
   };
