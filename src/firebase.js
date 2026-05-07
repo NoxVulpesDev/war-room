@@ -147,6 +147,10 @@ export async function getHistory(sessionId) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse();
 }
 
+export async function deleteHistoryEntry(sessionId, entryId) {
+  await deleteDoc(doc(db, "sessions", sessionId, "history", entryId));
+}
+
 export async function saveHistoryEntry(sessionId, tokens, { actorId, actorName, actionType, description }) {
   const snapshot = {};
   tokens.forEach((t) => {

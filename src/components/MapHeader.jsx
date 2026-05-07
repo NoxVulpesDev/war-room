@@ -15,6 +15,7 @@ export default function MapHeader({
   onOpenAdminPanel,
   onOpenTimeline, isReplaying,
   tokenCap,
+  onUndo, undoStatus, nothingToUndo,
 }) {
   const [showHelp, setShowHelp] = useState(false);
 
@@ -194,6 +195,38 @@ export default function MapHeader({
           >
             ⚙ Admin
           </button>
+        )}
+
+        {/* Undo */}
+        {selectedMap && (
+          <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 6 }}>
+            <button
+              onClick={onUndo}
+              disabled={undoStatus === "confirming"}
+              title="Undo your last action (Ctrl+Z)"
+              style={{
+                fontFamily: "'Cinzel', serif", fontSize: 10, fontWeight: 600,
+                letterSpacing: "0.06em", textTransform: "uppercase",
+                padding: "5px 10px", borderRadius: 3,
+                border: `1px solid ${undoStatus === "loading" ? "#5c3d11" : "#3a2209"}`,
+                background: "#1f1005",
+                color: undoStatus === "loading" ? "#c4952a" : "#8b7040",
+                cursor: undoStatus === "confirming" ? "not-allowed" : "pointer",
+                opacity: undoStatus === "confirming" ? 0.5 : 1,
+                transition: "all 0.15s",
+              }}
+            >
+              {undoStatus === "loading" ? "⟳ …" : "↩ Undo"}
+            </button>
+            {nothingToUndo && (
+              <span style={{
+                fontFamily: "'Cinzel', serif", fontSize: 10, color: "#8b7040",
+                letterSpacing: "0.05em", whiteSpace: "nowrap",
+              }}>
+                Nothing to undo
+              </span>
+            )}
+          </div>
         )}
 
         {/* History / timeline */}

@@ -13,6 +13,7 @@ import { useAuth } from "./hooks/useAuth";
 import { useFirestoreTokenSync } from "./hooks/useFirestoreTokenSync";
 import { useMapZoomPan } from "./hooks/useMapZoomPan";
 import { useHistoryTimeline } from "./hooks/useHistoryTimeline";
+import { useUndoLastAction } from "./hooks/useUndoLastAction";
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function BattleMap() {
@@ -99,6 +100,13 @@ export default function BattleMap() {
     loading: historyLoading,
     openTimeline, exitReplay,
   } = useHistoryTimeline({ sessionId });
+
+  const { undoStatus, undoData, nothingToUndo, triggerUndo, confirmUndo, cancelUndo } = useUndoLastAction({
+    sessionId,
+    userId:          userProfile?.uid ?? null,
+    tokens,
+    setTokensAndSave,
+  });
 
   const displayTokens  = isReplaying && currentSnapshot ? currentSnapshot : tokens;
   const selectedToken  = displayTokens.find(t => t.id === selected);
@@ -368,6 +376,18 @@ export default function BattleMap() {
     if (isReplaying) { setSelected(null); setShowPanel(false); }
   }, [isReplaying]);
 
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key !== "z" || e.shiftKey) return;
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      e.preventDefault();
+      triggerUndo();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [triggerUndo]);
+
   const handleSplit = () => {
     if (!selectedToken) return;
     const mb = getMapScreenBounds(mapImgRef.current);
@@ -496,6 +516,7 @@ export default function BattleMap() {
         onOpenAdminPanel={() => setShowAdminPanel(true)}
         onOpenTimeline={openTimeline} isReplaying={isReplaying}
         tokenCap={tokenCap}
+        onUndo={triggerUndo} undoStatus={undoStatus} nothingToUndo={nothingToUndo}
       />
 
       {/* ── Main layout ─────────────────────────────────────────────────────── */}
@@ -588,6 +609,23 @@ export default function BattleMap() {
                 📜 VIEWING HISTORY — edits disabled
               </span>
               <button className="toolbar-btn active" onClick={exitReplay}>⟳ Return to Live</button>
+            </div>
+          )}
+
+          {/* Undo conflict confirmation banner */}
+          {undoStatus === "confirming" && undoData && (
+            <div style={{
+              position: "absolute", top: 0, left: 0, right: 0, zIndex: 20,
+              background: "rgba(50, 20, 0, 0.95)", borderBottom: "1px solid #c4952a",
+              padding: "8px 14px", display: "flex", alignItems: "center", gap: 12,
+              backdropFilter: "blur(4px)",
+            }}>
+              <span style={{ fontSize: 16, flexShrink: 0 }}>⚠</span>
+              <span style={{ fontFamily: "'Cinzel', serif", fontSize: 11, color: "#f0d060", letterSpacing: "0.06em", flex: 1 }}>
+                {undoData.warning} Undo &ldquo;{undoData.description}&rdquo; anyway?
+              </span>
+              <button className="toolbar-btn active" onClick={confirmUndo}>↩ Undo anyway</button>
+              <button className="toolbar-btn" onClick={cancelUndo}>Cancel</button>
             </div>
           )}
 
