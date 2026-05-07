@@ -16,6 +16,7 @@ export default function TokenPanel({
   noteInput, setNoteInput, addNote, removeNote,
   addGmNote, removeGmNote,
   splitCount, setSplitCount, handleSplit,
+  handleToggleLock,
   handleSetMemberName,
   handleDonate,
   sessionId,
@@ -66,6 +67,12 @@ export default function TokenPanel({
           {locked && (
             <p style={{ fontSize: 11, color: "#5c4a28", fontStyle: "italic", marginBottom: 12, background: "#1a0e05", borderRadius: 3, padding: "6px 10px", border: "1px solid #2c1a06" }}>
               You may view but not edit this token.
+            </p>
+          )}
+
+          {selectedToken.locked && (
+            <p style={{ fontSize: 11, color: "#8b7040", marginBottom: 12, background: "#1a0e05", borderRadius: 3, padding: "6px 10px", border: "1px solid #3a2209" }}>
+              Group composition is locked — cannot be merged or split.
             </p>
           )}
 
@@ -147,6 +154,21 @@ export default function TokenPanel({
                   <p style={{ margin: "5px 0 0", fontSize: 11, color: "#5c4a28" }}>Detaches {Math.max(1, splitCount)} unit{Math.max(1, splitCount) !== 1 ? "s" : ""} into a new token nearby</p>
                 </>
               )}
+            </div>
+          )}
+
+          {/* Lock Group */}
+          {isGrouped && !locked && (
+            <div style={{ marginBottom: 16 }}>
+              <button
+                onClick={handleToggleLock}
+                style={{ width: "100%", background: selectedToken.locked ? "#2d1a06" : "#1a0e05", border: `1px solid ${selectedToken.locked ? "#c4952a" : "#5c3d11"}`, color: selectedToken.locked ? "#c4952a" : "#8b7040", borderRadius: 3, padding: "5px 8px", cursor: "pointer", fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: "0.05em", textTransform: "uppercase" }}
+              >
+                {selectedToken.locked ? "⚿ Unlock group" : "⚿ Lock group"}
+              </button>
+              <p style={{ margin: "5px 0 0", fontSize: 11, color: "#5c4a28" }}>
+                {selectedToken.locked ? "Allow this group to be merged with or split again" : "Prevent this group from being merged or split"}
+              </p>
             </div>
           )}
 

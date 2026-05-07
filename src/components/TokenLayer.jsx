@@ -80,6 +80,15 @@ export default function TokenLayer({
                   background: "#c4952a", border: `${zoom}px solid #1a0e05`,
                 }} />
               )}
+              {token.locked && token.members?.length > 1 && (
+                <span style={{
+                  position: "absolute", top: -4 * zoom, left: -4 * zoom,
+                  width: 10 * zoom, height: 10 * zoom, borderRadius: "50%",
+                  background: "#5c3d11", border: `${zoom}px solid #1a0e05`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 6 * zoom, lineHeight: 1, color: "#c4952a",
+                }}>⚿</span>
+              )}
             </div>
           );
         })}

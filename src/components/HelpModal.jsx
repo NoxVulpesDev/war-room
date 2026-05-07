@@ -82,6 +82,7 @@ function CommanderSection() {
           <Row label="Unit Name" desc="Name your unit (or a specific member of a group)." />
           <Row label="Field Notes" desc="Add notes to any token — prefixed with your name. Delete your own notes with ✕." />
           <Row label="Split Forces" desc="Detach part of a group into a new token nearby. For grouped tokens, choose a member from the dropdown; for simple tokens, set a count." />
+          <Row label="Lock Group" desc="Freeze a grouped token's composition — prevents merging or splitting. Any member-owner can toggle ⚿ Lock / Unlock group. A locked group shows a ⚿ badge on the map." />
           <Row label="Donate Token" desc="Transfer full ownership to another player. Select a recipient and click ⇒ Transfer ownership." />
         </tbody>
       </table>

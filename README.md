@@ -228,6 +228,7 @@ App.jsx (BattleMap)
     ownerId: string | null,
     nation:  string | null,
   }>,
+  locked:    boolean,      // When true, group cannot be merged or split (toggled by any member-owner)
   updatedAt: Timestamp,
 }
 ```

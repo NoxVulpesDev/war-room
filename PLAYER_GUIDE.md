@@ -61,6 +61,7 @@ Click any token in **⊕ Place** or **✦ Move** mode to open the side panel.
 - **Split Forces** — detach part of a group into a new nearby token.
   - For a **grouped** token: choose a member from the dropdown and click **⑃ Split off selected** to peel them out with their notes and ownership intact.
   - For a **simple** token: set the count to split off and click **⑃ Split off**.
+- **Lock Group** — freeze the composition of a grouped token so it cannot be merged with other tokens or split apart. Click **⚿ Lock group** on any grouped token you belong to. Any member-owner of the group can toggle the lock. A locked group displays a small **⚿** badge on the map. Click **⚿ Unlock group** to allow merging and splitting again.
 - **Donate Token** — transfer full ownership of a token to another player. Select a recipient from the dropdown and click **⇒ Transfer ownership**.
 
 **What you can do on tokens you don't own:**

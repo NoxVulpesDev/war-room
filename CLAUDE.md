@@ -79,6 +79,7 @@ src/
   gmNotes: string[],     // admin-only; never shown to players
   ownerId: uid | null,   // null for admin-placed enemy tokens
   nation:  "erin" | "manx" | "cymria" | "caledonia" | null,
+  locked:  boolean,          // when true, group cannot be merged or split
 }
 ```
 

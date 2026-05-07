@@ -181,6 +181,7 @@ export default function BattleMap() {
     const nearby = findMergeTarget(tokens, mb, e.clientX, e.clientY, placingFaction, screenThreshold);
 
     if (nearby) {
+      if (nearby.locked && !isAdminMode) return;
       setTokensAndSave(prev => prev.map(t => {
         if (t.id !== nearby.id) return t;
         const existingMembers = t.members?.length
@@ -253,7 +254,7 @@ export default function BattleMap() {
       const screenThreshold = MERGE_THRESHOLD * zoomRef.current;
       const mergeTarget = findMergeTarget(tokensRef.current, mb, e.clientX - grabX, e.clientY - grabY, dragged.faction, screenThreshold, draggedId);
 
-      if (mergeTarget) {
+      if (mergeTarget && ((!mergeTarget.locked && !dragged.locked) || isAdminMode)) {
         const draggedMembers = dragged.members?.length
           ? dragged.members
           : [{ id: dragged.id + "_m0", name: dragged.name ?? '', count: dragged.count, notes: dragged.notes ?? [], ownerId: dragged.ownerId, nation: dragged.nation }];
@@ -390,6 +391,7 @@ export default function BattleMap() {
 
   const handleSplit = () => {
     if (!selectedToken) return;
+    if (selectedToken.locked && !isAdminMode) return;
     const mb = getMapScreenBounds(mapImgRef.current);
     const allMembers = selectedToken.members?.length ? selectedToken.members : null;
 
@@ -435,6 +437,16 @@ export default function BattleMap() {
     }
     setSplitCount(0);
   };
+
+  const handleToggleLock = useCallback(() => {
+    if (!selectedToken || !canMutateToken(selectedToken)) return;
+    const nowLocked = !selectedToken.locked;
+    setTokensAndSave(
+      prev => prev.map(t => t.id === selected ? { ...t, locked: nowLocked } : t),
+      { actionType: nowLocked ? "lock" : "unlock",
+        description: `${nowLocked ? "Locked" : "Unlocked"} ${selectedToken.faction} group` }
+    );
+  }, [selectedToken, selected, canMutateToken, setTokensAndSave]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // RENDER
@@ -667,6 +679,7 @@ export default function BattleMap() {
           addNote={addNote} removeNote={removeNote}
           addGmNote={addGmNote} removeGmNote={removeGmNote}
           splitCount={splitCount} setSplitCount={setSplitCount} handleSplit={handleSplit}
+          handleToggleLock={handleToggleLock}
           handleSetMemberName={handleSetMemberName}
           handleDonate={handleDonate}
           sessionId={sessionId}
