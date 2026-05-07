@@ -152,7 +152,7 @@ export default function BattleMap() {
     if (!isAdminMode && selectedMap && userProfile?.nation && selectedMap !== userProfile.nation) return;
     const effectiveMax = userProfile?.maxTokens ?? defaultMaxTokens;
     if (!isAdminMode && effectiveMax != null) {
-      const ownedCount = tokens.filter(t => t.ownerId === userProfile.uid).reduce((s, t) => s + t.count, 0);
+      const ownedCount = tokens.filter(t => t.ownerId === userProfile.uid && t.faction !== "contested").reduce((s, t) => s + t.count, 0);
       if (ownedCount >= effectiveMax) {
         setTokenLimitWarning(true);
         setTimeout(() => setTokenLimitWarning(false), 2500);
