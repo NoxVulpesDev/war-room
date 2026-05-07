@@ -9,7 +9,7 @@ const NATIONS_LIST = [
   { value: "cymria",    label: "Cymria" },
 ];
 
-export default function AdminPanel({ onClose }) {
+export default function AdminPanel({ onClose, onHistoryCleared }) {
   const [users,         setUsers]         = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [edits,         setEdits]         = useState({});
@@ -80,6 +80,7 @@ export default function AdminPanel({ onClose }) {
     try {
       const count = await clearHistory(historyMap);
       setHistoryMsg(`Cleared ${count} entr${count === 1 ? "y" : "ies"} from ${mapLabel}.`);
+      onHistoryCleared?.();
     } catch (err) {
       setHistoryError(err.message);
     } finally {

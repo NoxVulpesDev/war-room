@@ -559,7 +559,7 @@ export default function BattleMap() {
         />
       </div>
 
-      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} />}
+      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} onHistoryCleared={exitReplay} />}
 
       {/* Footer */}
       <footer style={{
