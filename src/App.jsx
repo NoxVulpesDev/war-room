@@ -404,7 +404,7 @@ export default function BattleMap() {
       />
 
       {/* ── Main layout ─────────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
+      <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
 
         {/* Canvas area */}
         <div
