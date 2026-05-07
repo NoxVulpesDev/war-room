@@ -8,6 +8,7 @@ import MapHeader from "./components/MapHeader";
 import TokenLayer from "./components/TokenLayer";
 import TokenPanel from "./components/TokenPanel";
 import TimelineBar from "./components/TimelineBar";
+import MovementArrows from "./components/MovementArrows";
 import { useAuth } from "./hooks/useAuth";
 import { useFirestoreTokenSync } from "./hooks/useFirestoreTokenSync";
 import { useMapZoomPan } from "./hooks/useMapZoomPan";
@@ -482,6 +483,16 @@ export default function BattleMap() {
             )}
 
           </div>
+
+          {isReplaying && viewingIndex > 0 && (
+            <MovementArrows
+              prevSnapshot={historyEntries[viewingIndex - 1].snapshot}
+              currSnapshot={historyEntries[viewingIndex].snapshot}
+              layoutBounds={layoutBounds}
+              pan={pan}
+              zoom={zoom}
+            />
+          )}
 
           <TokenLayer
             tokens={displayTokens} layoutBounds={layoutBounds} pan={pan} zoom={zoom}
