@@ -61,7 +61,8 @@ war-council/
 │   │   ├── useAuth.js              Auth state, user profile, derived role flags
 │   │   ├── useFirestoreTokenSync.js  Token state, real-time listener, debounced save
 │   │   ├── useMapZoomPan.js        Zoom/pan state, wheel/mouse/touch gesture handlers
-│   │   └── useHistoryTimeline.js   On-demand history fetch, replay state, snapshot→tokens
+│   │   ├── useHistoryTimeline.js   On-demand history fetch, replay state, snapshot→tokens
+│   │   └── useUndoLastAction.js    Delta-based undo: fetches history, reverses user's last action
 │   │
 │   └── components/
 │       ├── MapHeader.jsx       Top toolbar: map selector, mode/faction controls,
@@ -242,8 +243,8 @@ One history entry per significant token action. Written fire-and-forget after ev
   timestamp:   Timestamp,
   actorId:     string | null,   // Firebase UID of the user who acted
   actorName:   string | null,   // Display name at time of action
-  actionType:  "place" | "move" | "merge" | "delete" | "split" | "rename" | "donate",
-  description: string,          // Human-readable e.g. "Moved player troops"
+  actionType:  "place" | "move" | "merge" | "delete" | "split" | "rename" | "donate" | "undo",
+  description: string,          // Human-readable e.g. "Moved player troops" or "Undo: Moved player troops"
   snapshot:    {                // Full token state at this moment
     [tokenId]: { faction, x, y, count, notes, ownerId, nation, members }
   },
@@ -326,6 +327,22 @@ Manages the on-demand action history state for the timeline UI.
 - `isReplaying` — true when the timeline is open and an entry is selected
 - Resets automatically when `sessionId` changes (map switch)
 
+### `src/hooks/useUndoLastAction.js`
+
+Implements delta-based undo for the current user's last action.
+
+**Params:** `{ sessionId, userId, tokens, setTokensAndSave }`
+
+**Returns:** `{ undoStatus, undoData, nothingToUndo, triggerUndo, confirmUndo, cancelUndo }`
+
+- `triggerUndo()` — fetches history, finds the current user's most recent non-undo entry, computes which token IDs it changed, checks the live board for conflicts, and either applies the undo immediately (no conflict) or transitions to `"confirming"` state (conflict detected)
+- `undoStatus` — `"idle" | "loading" | "confirming"`
+- `undoData` — when confirming: `{ entryId, description, prevSnapshot, changedIds, warning }`
+- `nothingToUndo` — true for 2 seconds after `triggerUndo` finds no eligible history entry
+- `confirmUndo()` / `cancelUndo()` — resolve the confirmation flow
+- The undo applies the reverse delta to the current live tokens (tokens untouched by the user's action are preserved exactly as-is). The original history entry is deleted and a new `"undo"` entry is written via the normal `setTokensAndSave` pipeline
+- A conflict is defined as: any token the user's action affected has a different value in the current live state than it had immediately after that action (i.e. someone else moved/edited/deleted it since)
+
 ### `src/hooks/useMapZoomPan.js`
 
 Manages all zoom/pan/gesture state. Attaches its own document-level event listeners internally.
@@ -343,7 +360,7 @@ Composes the three hooks, owns local UI state (selected token, mode, placing fac
 
 ### `src/components/MapHeader.jsx`
 
-Top toolbar. Receives auth state, map state, permission flags, and handler callbacks as props. Imports `signOut` and `auth` from `firebase.js` directly. Accepts a `tokenCap` prop (the effective unit cap after applying the global default fallback) and displays a live `owned/cap units` indicator when a cap is active — contested tokens are excluded from both the count and the cap display. Also renders a **? Guide** button that opens `HelpModal`, showing only the sections relevant to the current user's role.
+Top toolbar. Receives auth state, map state, permission flags, and handler callbacks as props. Imports `signOut` and `auth` from `firebase.js` directly. Accepts a `tokenCap` prop (the effective unit cap after applying the global default fallback) and displays a live `owned/cap units` indicator when a cap is active — contested tokens are excluded from both the count and the cap display. Also renders a **? Guide** button that opens `HelpModal`, showing only the sections relevant to the current user's role. Renders an **↩ Undo** button (Ctrl+Z) that shows a loading state while history is fetched and a "Nothing to undo" flash when the user has no prior actions; the undo confirmation banner itself is rendered by `App.jsx` over the canvas area when a conflict is detected.
 
 ### `src/components/TokenLayer.jsx`
 
@@ -396,6 +413,7 @@ Firebase initialisation and all Firestore operations.
 | `updateGlobalSettings(updates)` | async fn | Merges updates into `config/global` |
 | `getHistory(sessionId)` | async fn | Fetches up to 100 history entries ordered oldest→newest |
 | `saveHistoryEntry(sessionId, tokens, meta)` | async fn | Writes one history snapshot; called fire-and-forget after `saveTokens` |
+| `deleteHistoryEntry(sessionId, entryId)` | async fn | Deletes a single history document; called by `useUndoLastAction` after applying an undo |
 | `clearHistory(sessionId)` | async fn | Batch-deletes all history documents for a map; returns count deleted |
 
 ---
@@ -644,7 +662,9 @@ The `base: '/war-room/'` in `vite.config.js` must match the GitHub Pages subpath
 
 **History is per-map and non-real-time.** The `history` subcollection is fetched once when the timeline opens — it is not a live listener. If another user makes changes while you are browsing history, you won't see them until you close and reopen the timeline. This is intentional to keep read costs near zero during normal play.
 
-**History does not record note edits.** `setTokensAndSave` calls that originate from `addNote` or `removeNote` deliberately omit the `actionMeta` argument. Only structural changes (place, move, merge, delete, split, rename) create history entries.
+**History does not record note edits.** `setTokensAndSave` calls that originate from `addNote` or `removeNote` deliberately omit the `actionMeta` argument. Only structural changes (place, move, merge, delete, split, rename, undo) create history entries.
+
+**Undo is delta-based, not snapshot-based.** `useUndoLastAction` computes which token IDs the user's last action changed, then reverses only those tokens against the current live board. Tokens owned by other players that happen to be in local state are untouched. This means undo interoperates safely with concurrent edits — another player's move since your last action is not reverted. The conflict warning fires when any of the affected tokens has changed since your action; you can still confirm the undo, which applies a last-write-wins merge.
 
 **`onForeignMap`** is derived state, not stored in Firestore. It is recomputed whenever `selectedMap` or `userProfile.nation` changes.
 

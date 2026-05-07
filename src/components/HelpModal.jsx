@@ -88,6 +88,12 @@ function CommanderSection() {
 
       <p style={h3}>History Timeline</p>
       <p style={p}>Click <strong>📜 History</strong> to scrub through past map states. Edits are disabled while viewing history — click <strong>⟳ Return to Live</strong> to resume.</p>
+
+      <p style={h3}>Undo</p>
+      <p style={p}>Click <strong>↩ Undo</strong> in the toolbar, or press <strong>Ctrl+Z</strong>, to reverse your last action on the current map.</p>
+      <p style={note}>• Only your own most recent action is reversed — other players' changes since then are preserved.</p>
+      <p style={note}>• If another player modified a token you affected after your action, a warning banner will appear asking you to confirm before proceeding.</p>
+      <p style={note}>• The undo is saved as its own history entry, so it can be seen in the timeline.</p>
     </div>
   );
 }
