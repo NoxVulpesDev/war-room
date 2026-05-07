@@ -70,6 +70,7 @@ war-council/
 │       ├── TokenPanel.jsx      Slide-out detail panel: count, notes, split, delete
 │       ├── TimelineBar.jsx     Bottom timeline strip: scrubber, prev/next, Live button
 │       ├── MovementArrows.jsx  SVG overlay: ghost circles + arrows for token movement
+│       ├── HelpModal.jsx       Role-aware Field Manual modal (Commander/Monarch/Admin sections)
 │       └── KnotCorner.jsx      Decorative SVG corner ornament
 │
 ├── public/
@@ -342,7 +343,7 @@ Composes the three hooks, owns local UI state (selected token, mode, placing fac
 
 ### `src/components/MapHeader.jsx`
 
-Top toolbar. Receives auth state, map state, permission flags, and handler callbacks as props. Imports `signOut` and `auth` from `firebase.js` directly. Accepts a `tokenCap` prop (the effective unit cap after applying the global default fallback) and displays a live `owned/cap units` indicator when a cap is active.
+Top toolbar. Receives auth state, map state, permission flags, and handler callbacks as props. Imports `signOut` and `auth` from `firebase.js` directly. Accepts a `tokenCap` prop (the effective unit cap after applying the global default fallback) and displays a live `owned/cap units` indicator when a cap is active — contested tokens are excluded from both the count and the cap display. Also renders a **? Guide** button that opens `HelpModal`, showing only the sections relevant to the current user's role.
 
 ### `src/components/TokenLayer.jsx`
 
@@ -351,6 +352,10 @@ Renders the token overlay (positioned absolutely over the canvas, outside the zo
 ### `src/components/TokenPanel.jsx`
 
 Slide-out detail panel (right edge). Shows faction, count controls, a **Unit Name** input (per-member, controlled by the split dropdown selection), split controls, a **Donate Token** section (owner-only), field notes grouped by member with headers, a per-member note target dropdown, and the remove button. When a token has two or more members the split section renders a dropdown listing each member by unit name / owner / nation / count; for legacy tokens it falls back to a numeric picker. Computes `locked` from `canMutateToken` and `countLocked` from `canEditCount` (monarchs can adjust counts on nation tokens without full mutation access). Imports `deleteToken` from `firebase.js` directly.
+
+### `src/components/HelpModal.jsx`
+
+Role-aware Field Manual modal. Shown when the user clicks **? Guide** in `MapHeader`. Renders three sections (Commander, Monarch, GM/Admin) and gates each on the viewer's role: all logged-in users see the Commander section; monarchs and admins also see the Monarch section; only admins see the GM/Admin section. Styled with `Cinzel`/`Crimson Text` inline CSS to match the rest of the UI. Takes no props — all role context is passed down from `MapHeader` via the `isMonarch` and `isAdminMode` props.
 
 ### `src/AuthModal.jsx` — `AuthModal`
 
@@ -533,7 +538,7 @@ For legacy tokens without a `members` array, the panel falls back to a numeric c
 
 ### Token limits
 
-If `userProfile.maxTokens` is set, the user cannot place tokens once their total unit count on the current map would exceed the cap. `globalSettings.defaultMaxTokens` is the fallback when `maxTokens` is null.
+If `userProfile.maxTokens` is set, the user cannot place tokens once their total unit count on the current map would exceed the cap. `globalSettings.defaultMaxTokens` is the fallback when `maxTokens` is null. Contested tokens (`faction: "contested"`) are excluded from both the cap enforcement count and the header display.
 
 ---
 
