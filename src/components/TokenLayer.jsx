@@ -67,9 +67,9 @@ export default function TokenLayer({
                 fontFamily: "'Cinzel', serif",
               }}
             >
-              <span style={{ fontSize: (token.count > 1 ? 12 : 16) * zoom, lineHeight: 1 }}>{faction.icon}</span>
+              <span style={{ fontSize: (token.count > 1 ? 9 : 12) * zoom, lineHeight: 1 }}>{faction.icon}</span>
               {token.count > 1 && (
-                <span style={{ fontSize: 10 * zoom, fontWeight: 700, color: "#f5e8c0", lineHeight: 1 }}>×{token.count}</span>
+                <span style={{ fontSize: 7 * zoom, fontWeight: 700, color: "#f5e8c0", lineHeight: 1 }}>×{token.count}</span>
               )}
               {token.notes?.length > 0 && (
                 <span style={{

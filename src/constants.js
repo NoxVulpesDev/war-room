@@ -20,6 +20,6 @@ export const NATIONS = {
   cymria:    { color: "#5c4818", border: "#d4aa30", label: "Cymria",    mapId: "cymria" },
 };
 
-export const TOKEN_RADIUS    = 11;
-export const MERGE_THRESHOLD = TOKEN_RADIUS * 2.2;
+export const TOKEN_RADIUS    = 8;
+export const MERGE_THRESHOLD = TOKEN_RADIUS * 1.4;
 export const SAVE_DEBOUNCE   = 1200;
