@@ -182,7 +182,7 @@ export function useMapZoomPan({ mode, authReady, mapImgRef, setTokens, setTokens
                 );
             }
             return prev.map(t => t.id === draggedId ? { ...t, x, y } : t);
-          });
+          }, { actionType: "move", description: "Moved troops" });
         }
         tokenTouchRef.current = null;
       }

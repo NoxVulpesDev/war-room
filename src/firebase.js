@@ -5,7 +5,7 @@ import {
   doc, getDoc, setDoc,
   collection, onSnapshot,
   writeBatch, serverTimestamp, deleteDoc,
-  getDocs,
+  getDocs, addDoc, query, orderBy, limit,
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -115,4 +115,47 @@ export async function getGlobalSettings() {
 
 export async function updateGlobalSettings(updates) {
   await setDoc(doc(db, "config", "global"), updates, { merge: true });
+}
+
+export async function clearHistory(sessionId) {
+  const snap = await getDocs(collection(db, "sessions", sessionId, "history"));
+  if (snap.empty) return 0;
+  const batch = writeBatch(db);
+  snap.docs.forEach(d => batch.delete(d.ref));
+  await batch.commit();
+  return snap.size;
+}
+
+export async function getHistory(sessionId) {
+  const q = query(
+    collection(db, "sessions", sessionId, "history"),
+    orderBy("timestamp", "desc"),
+    limit(100)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse();
+}
+
+export async function saveHistoryEntry(sessionId, tokens, { actorId, actorName, actionType, description }) {
+  const snapshot = {};
+  tokens.forEach((t) => {
+    snapshot[t.id] = {
+      faction: t.faction,
+      x:       t.x,
+      y:       t.y,
+      count:   t.count,
+      notes:   t.notes   ?? [],
+      ownerId: t.ownerId ?? null,
+      nation:  t.nation  ?? null,
+      members: t.members ?? [],
+    };
+  });
+  await addDoc(collection(db, "sessions", sessionId, "history"), {
+    timestamp:   serverTimestamp(),
+    actorId:     actorId  ?? null,
+    actorName:   actorName ?? null,
+    actionType,
+    description,
+    snapshot,
+  });
 }

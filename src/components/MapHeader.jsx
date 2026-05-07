@@ -11,6 +11,7 @@ export default function MapHeader({
   saveStatus, tokens,
   zoom, adjustZoom, resetView,
   onOpenAdminPanel,
+  onOpenTimeline, isReplaying,
 }) {
   return (
     <header style={{
@@ -202,6 +203,24 @@ export default function MapHeader({
             onMouseOut={e => { e.currentTarget.style.background = "#3a2209"; }}
           >
             ⚙ Admin
+          </button>
+        )}
+
+        {/* History / timeline */}
+        {selectedMap && (
+          <button
+            onClick={onOpenTimeline}
+            style={{
+              fontFamily: "'Cinzel', serif", fontSize: 10, fontWeight: 600,
+              letterSpacing: "0.06em", textTransform: "uppercase",
+              padding: "5px 10px", borderRadius: 3,
+              border: `1px solid ${isReplaying ? "#c4952a" : "#3a2209"}`,
+              background: isReplaying ? "#5c3d11" : "#1f1005",
+              color: isReplaying ? "#f0d060" : "#8b7040",
+              cursor: "pointer", transition: "all 0.15s",
+            }}
+          >
+            📜 History
           </button>
         )}
 
