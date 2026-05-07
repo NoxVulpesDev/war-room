@@ -643,7 +643,7 @@ export default function BattleMap() {
         display: "flex", gap: 20, alignItems: "center", fontSize: 12, color: "#5c4a28", flexWrap: "wrap",
       }}>
         <span style={{ fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: "0.1em", color: "#3a2d18", textTransform: "uppercase" }}>
-          Phase II — Auth &amp; Persistence
+          Auth &amp; Persistence
         </span>
         <span>⊕ Place: click canvas to place a token</span>
         <span>✦ Move: drag tokens to reposition</span>

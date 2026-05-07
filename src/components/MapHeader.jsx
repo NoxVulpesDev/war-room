@@ -32,7 +32,7 @@ export default function MapHeader({
           textShadow: "0 0 20px #c4952a44",
         }}>⚔ The War Council</h1>
         <p style={{ margin: 0, fontSize: 11, color: "#7a5c28", letterSpacing: "0.12em", textTransform: "uppercase" }}>
-          Battle Map — Phase II
+          Battle Map
         </p>
       </div>
 
