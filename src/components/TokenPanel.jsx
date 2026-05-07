@@ -92,7 +92,9 @@ export default function TokenPanel({
                 <span style={{ fontSize: 12, fontWeight: 400, opacity: 0.8 }}> — {NATIONS[selectedToken.nation].label}</span>
               )}
             </p>
-            <p style={{ margin: "0 0 4px", fontSize: 13, color: "#8b7040" }}>Count</p>
+            {/* COUNT UI — disabled: redundant under the group model where size = member count.
+                Re-enable if count gets a new purpose (e.g. stacking, supplies, abstracted strength). */}
+            {/* <p style={{ margin: "0 0 4px", fontSize: 13, color: "#8b7040" }}>Count</p>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <button disabled={countLocked}
                 onClick={() => !countLocked && setTokensAndSave(prev => prev.map(t => t.id === selected && t.count > 1 ? { ...t, count: t.count - 1 } : t))}
@@ -101,7 +103,7 @@ export default function TokenPanel({
               <button disabled={countLocked}
                 onClick={() => !countLocked && setTokensAndSave(prev => prev.map(t => t.id === selected ? { ...t, count: t.count + 1 } : t))}
                 style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, width: 24, height: 24, cursor: countLocked ? "not-allowed" : "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", opacity: countLocked ? 0.5 : 1 }}>+</button>
-            </div>
+            </div> */}
           </div>
 
           {/* Unit Name */}
