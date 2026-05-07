@@ -60,13 +60,16 @@ war-council/
 │   ├── hooks/
 │   │   ├── useAuth.js              Auth state, user profile, derived role flags
 │   │   ├── useFirestoreTokenSync.js  Token state, real-time listener, debounced save
-│   │   └── useMapZoomPan.js        Zoom/pan state, wheel/mouse/touch gesture handlers
+│   │   ├── useMapZoomPan.js        Zoom/pan state, wheel/mouse/touch gesture handlers
+│   │   └── useHistoryTimeline.js   On-demand history fetch, replay state, snapshot→tokens
 │   │
 │   └── components/
 │       ├── MapHeader.jsx       Top toolbar: map selector, mode/faction controls,
 │       │                       zoom buttons, save status, role badge, sign-out
 │       ├── TokenLayer.jsx      Token rendering loop + limit/territory banners
 │       ├── TokenPanel.jsx      Slide-out detail panel: count, notes, split, delete
+│       ├── TimelineBar.jsx     Bottom timeline strip: scrubber, prev/next, Live button
+│       ├── MovementArrows.jsx  SVG overlay: ghost circles + arrows for token movement
 │       └── KnotCorner.jsx      Decorative SVG corner ornament
 │
 ├── public/
@@ -126,6 +129,12 @@ service cloud.firestore {
     match /sessions/{sessionId}/tokens/{tokenId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null;
+    }
+    match /sessions/{sessionId}/history/{entryId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null;
+      allow delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
     match /config/global {
       allow read: if request.auth != null;
@@ -239,6 +248,25 @@ App.jsx (BattleMap)
 
 `members` is populated whenever two or more tokens are grouped together. Legacy tokens in Firestore that predate this field are treated as having a single implicit member (using the top-level `count`, `notes`, `ownerId`, and `nation`).
 
+### `sessions/{sessionId}/history/{entryId}`
+
+One history entry per significant token action. Written fire-and-forget after every successful `saveTokens` call that carries action metadata. Note edits are excluded.
+
+```js
+{
+  timestamp:   Timestamp,
+  actorId:     string | null,   // Firebase UID of the user who acted
+  actorName:   string | null,   // Display name at time of action
+  actionType:  "place" | "move" | "merge" | "delete" | "split" | "rename",
+  description: string,          // Human-readable e.g. "Moved player troops"
+  snapshot:    {                // Full token state at this moment
+    [tokenId]: { faction, x, y, count, notes, ownerId, nation, members }
+  },
+}
+```
+
+Fetched on demand (not a real-time listener). Capped at 100 entries per fetch. Cleared via the Admin Panel History Management section.
+
 ### `config/global`
 
 ```js
@@ -291,13 +319,27 @@ Manages all authentication state and derived permission flags.
 
 Manages token state, the real-time Firestore listener, and the debounced save pipeline.
 
-**Params:** `{ isPlayer, selectedMap, sessionId, userId, isAdminMode }`
+**Params:** `{ isPlayer, selectedMap, sessionId, userId, actorName, isAdminMode }`
 
 **Returns:** `{ tokens, setTokens, setTokensAndSave, saveStatus }`
 
-- `setTokensAndSave(updater)` — updates local state immediately and schedules a Firestore write
+- `setTokensAndSave(updater, actionMeta?)` — updates local state immediately and schedules a Firestore write; if `actionMeta = { actionType, description }` is provided, also writes a history entry after the save
 - `saveStatus` — `"idle" | "saving" | "saved" | "error"`; displayed in the toolbar
 - Firestore snapshots are ignored while a local write is pending (see [Real-Time Sync Strategy](#real-time-sync-strategy))
+- Note edits (`addNote`, `removeNote`) call `setTokensAndSave` without `actionMeta` so they are excluded from history
+
+### `src/hooks/useHistoryTimeline.js`
+
+Manages the on-demand action history state for the timeline UI.
+
+**Params:** `{ sessionId }`
+
+**Returns:** `{ isOpen, entries, viewingIndex, setViewingIndex, isReplaying, currentSnapshot, loading, openTimeline, exitReplay }`
+
+- `openTimeline()` — fetches up to 100 history entries (oldest→newest) from Firestore and opens the timeline bar
+- `currentSnapshot` — when replaying, the selected entry's snapshot converted to a tokens array; `null` when live
+- `isReplaying` — true when the timeline is open and an entry is selected
+- Resets automatically when `sessionId` changes (map switch)
 
 ### `src/hooks/useMapZoomPan.js`
 
@@ -341,10 +383,10 @@ Handles login (email + password), signup (email + password + display name + nati
 Modal panel for admin users. Props:
 
 ```js
-{ onClose: () => void }
+{ onClose: () => void, onHistoryCleared?: () => void }
 ```
 
-Fetches all users from Firestore on mount. Provides a grid for editing each user's nation, rank, and unit cap. Also provides a global settings section for the default unit cap.
+Fetches all users from Firestore on mount. Provides a grid for editing each user's nation, rank, and unit cap. Also provides a global settings section for the default unit cap, and a History Management section for clearing a map's action history. `onHistoryCleared` is called after a successful clear so the caller can exit replay mode.
 
 ### `src/firebase.js`
 
@@ -362,6 +404,9 @@ Firebase initialisation and all Firestore operations.
 | `updateUserProfile(uid, updates)` | async fn | Merges a partial update into a user document |
 | `getGlobalSettings()` | async fn | Reads `config/global` |
 | `updateGlobalSettings(updates)` | async fn | Merges updates into `config/global` |
+| `getHistory(sessionId)` | async fn | Fetches up to 100 history entries ordered oldest→newest |
+| `saveHistoryEntry(sessionId, tokens, meta)` | async fn | Writes one history snapshot; called fire-and-forget after `saveTokens` |
+| `clearHistory(sessionId)` | async fn | Batch-deletes all history documents for a map; returns count deleted |
 
 ---
 
@@ -601,6 +646,10 @@ The `base: '/war-room/'` in `vite.config.js` must match the GitHub Pages subpath
 **Legacy role "player".** Early versions used `role: "player"`. The AdminPanel normalises this to `"commander"` in the display layer. If you see `role: "player"` in the database, treat it as `"commander"`.
 
 **The `id` field is duplicated.** Tokens have both a Firestore document ID and an `id` field inside the document body. They are the same value. The field exists so that token objects passed around in memory always carry their own identifier without needing to re-query.
+
+**History is per-map and non-real-time.** The `history` subcollection is fetched once when the timeline opens — it is not a live listener. If another user makes changes while you are browsing history, you won't see them until you close and reopen the timeline. This is intentional to keep read costs near zero during normal play.
+
+**History does not record note edits.** `setTokensAndSave` calls that originate from `addNote` or `removeNote` deliberately omit the `actionMeta` argument. Only structural changes (place, move, merge, delete, split, rename) create history entries.
 
 **`onForeignMap`** is derived state, not stored in Firestore. It is recomputed whenever `selectedMap` or `userProfile.nation` changes.
 
