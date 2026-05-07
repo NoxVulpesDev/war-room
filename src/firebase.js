@@ -85,9 +85,10 @@ export async function saveTokens(sessionId, tokens, currentUserId = null, isAdmi
       y:         token.y,
       count:     token.count,
       notes:     token.notes,
-      ownerId:   token.ownerId ?? null,
-      nation:    token.nation ?? null,
-      members:   token.members ?? [],
+      gmNotes:   token.gmNotes  ?? [],
+      ownerId:   token.ownerId  ?? null,
+      nation:    token.nation   ?? null,
+      members:   token.members  ?? [],
       updatedAt: serverTimestamp(),
     });
   });
@@ -150,14 +151,15 @@ export async function saveHistoryEntry(sessionId, tokens, { actorId, actorName, 
   const snapshot = {};
   tokens.forEach((t) => {
     snapshot[t.id] = {
-      faction: t.faction,
-      x:       t.x,
-      y:       t.y,
-      count:   t.count,
-      notes:   t.notes   ?? [],
-      ownerId: t.ownerId ?? null,
-      nation:  t.nation  ?? null,
-      members: t.members ?? [],
+      faction:  t.faction,
+      x:        t.x,
+      y:        t.y,
+      count:    t.count,
+      notes:    t.notes   ?? [],
+      gmNotes:  t.gmNotes ?? [],
+      ownerId:  t.ownerId ?? null,
+      nation:   t.nation  ?? null,
+      members:  t.members ?? [],
     };
   });
   await addDoc(collection(db, "sessions", sessionId, "history"), {

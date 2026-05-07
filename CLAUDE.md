@@ -75,6 +75,7 @@ src/
   y:       number,   // normalized 0–1 relative to map image height
   count:   number,
   notes:   string[],
+  gmNotes: string[],     // admin-only; never shown to players
   ownerId: uid | null,   // null for admin-placed enemy tokens
   nation:  "erin" | "manx" | "cymria" | "caledonia" | null,
 }

@@ -310,6 +310,19 @@ export default function BattleMap() {
     }));
   };
 
+  const addGmNote = (text) => {
+    if (!text.trim() || !selected) return;
+    setTokensAndSave(prev => prev.map(t =>
+      t.id === selected ? { ...t, gmNotes: [...(t.gmNotes ?? []), text.trim()] } : t
+    ));
+  };
+
+  const removeGmNote = (tokenId, idx) => {
+    setTokensAndSave(prev => prev.map(t =>
+      t.id === tokenId ? { ...t, gmNotes: (t.gmNotes ?? []).filter((_, i) => i !== idx) } : t
+    ));
+  };
+
   const handleDonate = useCallback(async (newOwnerId) => {
     if (!selectedToken || !userProfile || newOwnerId === userProfile.uid) return;
     const recipientProfile = userProfiles[newOwnerId];
@@ -587,6 +600,7 @@ export default function BattleMap() {
           setTokensAndSave={setTokensAndSave}
           noteInput={noteInput} setNoteInput={setNoteInput}
           addNote={addNote} removeNote={removeNote}
+          addGmNote={addGmNote} removeGmNote={removeGmNote}
           splitCount={splitCount} setSplitCount={setSplitCount} handleSplit={handleSplit}
           handleSetMemberName={handleSetMemberName}
           handleDonate={handleDonate}

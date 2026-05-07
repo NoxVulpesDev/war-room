@@ -114,6 +114,14 @@ The **👑 Admin: Off / On** button in the top-right switches your elevated perm
 - **Remove any note** on any token.
 - **No unit cap** enforced — you can place as many tokens as needed.
 
+### GM Notes
+
+The Token Panel includes a **⚙ GM Notes** section visible only to admins (regardless of admin mode). Use it to attach private intelligence, reminders, or scenario details to any token — players never see this section.
+
+- Open any token's panel and scroll to **⚙ GM Notes**.
+- Type a note and press Enter or **+** to save.
+- Click **✕** next to a note to remove it.
+
 ### History Timeline
 
 Same scrubber as other roles, but you also control the **Clear History** option in the Admin Panel (see below).
@@ -166,6 +174,7 @@ Click **Save** on a row to apply changes immediately. Nation and rank changes ta
 | Remove own notes | ✓ | ✓ | ✓ |
 | Remove nation notes | — | ✓ | ✓ |
 | Remove any note | — | — | ✓ |
+| GM Notes (private) | — | — | ✓ |
 | Donate token | ✓ | ✓ | ✓ |
 | Split forces | ✓ | ✓ | ✓ |
 | View history timeline | ✓ | ✓ | ✓ |

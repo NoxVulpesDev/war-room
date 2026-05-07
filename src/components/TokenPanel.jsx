@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FACTIONS, NATIONS } from "../constants";
 import { deleteToken } from "../firebase";
 
@@ -14,6 +14,7 @@ export default function TokenPanel({
   userProfile, userProfiles,
   setTokensAndSave,
   noteInput, setNoteInput, addNote, removeNote,
+  addGmNote, removeGmNote,
   splitCount, setSplitCount, handleSplit,
   handleSetMemberName,
   handleDonate,
@@ -24,13 +25,14 @@ export default function TokenPanel({
   const isOwner = selectedToken?.ownerId === userProfile?.uid;
   const [noteTarget, setNoteTarget] = useState(0);
   const [donateTarget, setDonateTarget] = useState("");
+  const [gmNoteInput, setGmNoteInput] = useState("");
 
   const members = selectedToken?.members ?? [];
   const isGrouped = members.length > 1;
   const activeMemberIdx = isGrouped ? Math.min(splitCount, members.length - 1) : 0;
   const activeMember = members[activeMemberIdx] ?? null;
 
-  useEffect(() => { setNoteTarget(0); setDonateTarget(""); }, [selected]);
+  useEffect(() => { setNoteTarget(0); setDonateTarget(""); setGmNoteInput(""); }, [selected]);
 
   const memberLabel = (member) => {
     const name = member.name?.trim() || (member.ownerId && userProfiles[member.ownerId]?.displayName) || "Unnamed";
@@ -240,6 +242,33 @@ export default function TokenPanel({
                 />
                 <button onClick={() => addNote(noteTarget)}
                   style={{ background: "#3a2209", border: "1px solid #5c3d11", color: "#c4952a", borderRadius: 3, padding: "5px 10px", cursor: "pointer", fontFamily: "'Cinzel', serif", fontSize: 11 }}>+</button>
+              </div>
+            </div>
+          )}
+
+          {/* GM Notes — only visible to admins */}
+          {isAdmin && (
+            <div style={{ marginBottom: 16, borderTop: "1px solid #2c1a06", paddingTop: 14 }}>
+              <p style={{ ...sectionLabel, color: "#a06030" }}>⚙ GM Notes <span style={{ fontSize: 10, fontWeight: 400, letterSpacing: 0, textTransform: "none", color: "#5c3d11" }}>(hidden from players)</span></p>
+              {(selectedToken.gmNotes ?? []).map((note, i) => (
+                <div key={`gm-${i}`} style={{ ...noteRow, background: "#1a0e02", border: "1px solid #5c3011" }}>
+                  <span style={{ fontSize: 12, color: "#a06030", flexShrink: 0, marginTop: 1 }}>◆</span>
+                  <span style={{ fontSize: 13, color: "#c4a060", flex: 1, lineHeight: 1.4 }}>{note}</span>
+                  <button onClick={() => removeGmNote(selected, i)}
+                    style={{ background: "none", border: "none", color: "#5c3d11", cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1, flexShrink: 0 }}>✕</button>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  className="note-input"
+                  value={gmNoteInput}
+                  onChange={e => setGmNoteInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { addGmNote(gmNoteInput); setGmNoteInput(""); } }}
+                  placeholder="Add a GM note…"
+                  style={{ flex: 1, borderColor: "#5c3011" }}
+                />
+                <button onClick={() => { addGmNote(gmNoteInput); setGmNoteInput(""); }}
+                  style={{ background: "#3a2009", border: "1px solid #5c3011", color: "#a06030", borderRadius: 3, padding: "5px 10px", cursor: "pointer", fontFamily: "'Cinzel', serif", fontSize: 11 }}>+</button>
               </div>
             </div>
           )}

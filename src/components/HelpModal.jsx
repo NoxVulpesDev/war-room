@@ -118,6 +118,9 @@ function AdminSection() {
       <p style={note}>• Remove <strong>any note</strong> on any token.</p>
       <p style={note}>• <strong>No unit cap</strong> enforced.</p>
 
+      <p style={h3}>GM Notes (Token Panel)</p>
+      <p style={p}>The Token Panel shows a <strong>⚙ GM Notes</strong> section visible only to you. Attach private intelligence or scenario notes to any token — players never see this section, regardless of admin mode.</p>
+
       <p style={h3}>Admin Panel (⚙ Admin button)</p>
       <table style={tableStyle}>
         <thead><tr><th style={th}>Section</th><th style={th}>What you can do</th></tr></thead>
