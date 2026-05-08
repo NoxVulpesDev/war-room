@@ -78,7 +78,6 @@ function CommanderSection() {
       <table style={tableStyle}>
         <thead><tr><th style={th}>Feature</th><th style={th}>What it does</th></tr></thead>
         <tbody>
-          <Row label="Count −/+" desc="Adjust troop count on your own tokens." />
           <Row label="Unit Name" desc="Name your unit (or a specific member of a group)." />
           <Row label="Field Notes" desc="Add notes to any token — prefixed with your name. Delete your own notes with ✕." />
           <Row label="Split Forces" desc="Detach part of a group into a new token nearby. For grouped tokens, choose a member from the dropdown; for simple tokens, set a count." />
@@ -104,7 +103,6 @@ function MonarchSection() {
     <div style={monarchSection}>
       <p style={{ ...h2, color: "#c4952a" }}>♔ Monarch — Additional Powers</p>
       <p style={p}>Everything a Commander can do, plus:</p>
-      <p style={note}>• <strong>Edit the count</strong> of any token belonging to your nation, even tokens you don't own.</p>
       <p style={note}>• <strong>Remove any note</strong> from any token in your nation, including notes left by other commanders.</p>
     </div>
   );

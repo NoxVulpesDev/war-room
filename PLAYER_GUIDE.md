@@ -55,7 +55,6 @@ Click any token in **⊕ Place** or **✦ Move** mode to open the side panel.
 
 **What you can do on your own tokens:**
 
-- **Count** — use the **−/+** buttons to adjust the troop count.
 - **Unit Name** — type a name for the unit (or for a specific member of a group).
 - **Field Notes** — add a note (prefixed with your display name automatically). Press Enter or click **+** to save. You can delete your own notes with the **✕** next to each one.
 - **Split Forces** — detach part of a group into a new nearby token.
@@ -66,7 +65,7 @@ Click any token in **⊕ Place** or **✦ Move** mode to open the side panel.
 
 **What you can do on tokens you don't own:**
 
-- View faction, owner, nation, and count (read-only).
+- View faction, owner, and nation (read-only).
 - Add a note (visible to all, prefixed with your name).
 
 ### Auto-save
@@ -82,10 +81,6 @@ All changes save automatically to Firebase after a short delay. The header shows
 _Elevated player role. Monarchs have additional authority over their nation's forces._
 
 Everything a Commander can do, plus:
-
-### Extended count editing
-
-- You can adjust the **count** on **any token belonging to your nation**, even tokens owned by other commanders in your nation. You cannot move or delete those tokens — just edit the number.
 
 ### Note removal
 
@@ -168,9 +163,6 @@ Click **Save** on a row to apply changes immediately. Nation and rank changes ta
 | Move any token | — | — | ✓ |
 | Delete own tokens | ✓ | ✓ | ✓ |
 | Delete any token | — | — | ✓ |
-| Edit count (own) | ✓ | ✓ | ✓ |
-| Edit count (nation) | — | ✓ | ✓ |
-| Edit count (any) | — | — | ✓ |
 | Add notes | ✓ | ✓ | ✓ |
 | Remove own notes | ✓ | ✓ | ✓ |
 | Remove nation notes | — | ✓ | ✓ |
